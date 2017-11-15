@@ -8,6 +8,7 @@ import multiprocessing
 from tqdm import tqdm
 from six.moves import queue
 import h5py
+import numpy as np
 
 from tensorpack.utils.concurrency import StoppableThread, ShareSessionThread
 from tensorpack.callbacks import Callback
