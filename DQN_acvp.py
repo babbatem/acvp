@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# File: DQN.py
+# Author: Yuxin Wu <ppwwyyxxc@gmail.com>
 
 import numpy as np
 
@@ -13,14 +15,16 @@ import subprocess
 import multiprocessing
 import threading
 from collections import deque
+import cv2
 
+os.environ['TENSORPACK_TRAIN_API'] = 'v2'   # will become default soon
 from tensorpack import *
 from tensorpack.utils.concurrency import *
 import tensorflow as tf
 
 from DQNModel import Model as DQNModel
-from common_acvp import Evaluator, eval_model_multithread, play_n_episodes, acvp_play_n_episodes
-from atari_wrapper import FrameStack, WarpFrame, FireResetEnv
+from common import Evaluator, eval_model_multithread, play_n_episodes
+from atari_wrapper import FrameStack, MapState, FireResetEnv
 from expreplay import ExpReplay
 from atari import AtariPlayer
 
@@ -47,7 +51,7 @@ def get_player(viz=False, train=False):
     env = AtariPlayer(ROM_FILE, frame_skip=ACTION_REPEAT, viz=viz,
                       live_lost_as_eoe=train, max_num_frames=30000)
     env = FireResetEnv(env)
-    env = WarpFrame(env, IMAGE_SIZE)
+    env = MapState(env, lambda im: cv2.resize(im, IMAGE_SIZE))
     if not train:
         # in training, history is taken care of in expreplay buffer
         env = FrameStack(env, FRAME_HISTORY)
@@ -103,7 +107,7 @@ def get_config():
     )
 
     return TrainConfig(
-        dataflow=expreplay,
+        data=QueueInput(expreplay),
         model=Model(),
         callbacks=[
             ModelSaver(),
@@ -132,7 +136,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', help='comma separated list of GPU(s) to use.')
     parser.add_argument('--load', help='load model')
     parser.add_argument('--task', help='task to perform',
-                        choices=['play', 'eval', 'train','acvp'], default='train')
+                        choices=['play', 'eval', 'train'], default='train')
     parser.add_argument('--rom', help='atari rom', required=True)
     parser.add_argument('--algo', help='algorithm',
                         choices=['DQN', 'Double', 'Dueling'], default='Double')
@@ -153,13 +157,10 @@ if __name__ == '__main__':
             session_init=get_model_loader(args.load),
             input_names=['state'],
             output_names=['Qvalue']))
-        if args.task == 'acvp':
-            acvp_play_n_episodes(get_player(viz=0.01), pred, 100)
         if args.task == 'play':
             play_n_episodes(get_player(viz=0.01), pred, 100)
         elif args.task == 'eval':
             eval_model_multithread(pred, EVAL_EPISODE, get_player)
-
     else:
         logger.set_logger_dir(
             os.path.join('train_log', 'DQN-{}'.format(
@@ -167,4 +168,4 @@ if __name__ == '__main__':
         config = get_config()
         if args.load:
             config.session_init = get_model_loader(args.load)
-        QueueInputTrainer(config).train()
+        launch_train_with_config(config, SimpleTrainer())

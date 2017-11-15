@@ -9,7 +9,7 @@ from tqdm import tqdm
 from six.moves import queue
 
 from tensorpack.utils.concurrency import StoppableThread, ShareSessionThread
-from tensorpack.callbacks import Triggerable
+from tensorpack.callbacks import Callback
 from tensorpack.utils import logger
 from tensorpack.utils.stats import StatCounter
 from tensorpack.utils.utils import get_tqdm_kwargs
@@ -20,7 +20,7 @@ def play_one_episode(env, func, render=False):
         """
         Map from observation to action, with 0.001 greedy.
         """
-        act = func(s[None, :, :, :]) [0][0].argmax()
+        act = func(s[None, :, :, :])[0][0].argmax()
         if random.random() < 0.001:
             spc = env.action_space
             act = spc.sample()
@@ -36,39 +36,6 @@ def play_one_episode(env, func, render=False):
         sum_r += r
         if isOver:
             return sum_r
-
-def play_one_episode_save_frames(env, func, render=True):
-    def predict(s):
-        """
-        Map from observation to action, with 0.001 greedy.
-        """
-        act = func(s[None, :, :, :]) [0][0].argmax()
-        if random.random() < 0.001:
-            spc = env.action_space
-            act = spc.sample()
-        return act
-
-    ob = env.reset()
-    # h5pi to save ob
-    # training set: 500,000 frames
-    # test set: 50,000 frames
-
-    sum_r = 0
-    while True:
-        act = predict(ob)
-        ob, r, isOver, info = env.step(act)
-        if render:
-            env.render()
-        sum_r += r
-        if isOver:
-            return sum_r
-
-def acvp_play_n_episodes(player, predfunc, nr, render=True):
-    logger.info("Start playing and saving frames")
-    for k in range(nr):
-        score = play_one_episode_save_frames(player, predfunc, render=render)
-        print("{}/{}, score={}".format(k, nr, score))
-
 
 
 def play_n_episodes(player, predfunc, nr, render=False):
@@ -112,24 +79,22 @@ def eval_with_funcs(predictors, nr_eval, get_player_fn):
         k.start()
         time.sleep(0.1)  # avoid simulator bugs
     stat = StatCounter()
-    try:
-        for _ in tqdm(range(nr_eval), **get_tqdm_kwargs()):
-            r = q.get()
-            stat.feed(r)
-        logger.info("Waiting for all the workers to finish the last run...")
-        for k in threads:
-            k.stop()
-        for k in threads:
-            k.join()
-        while q.qsize():
-            r = q.get()
-            stat.feed(r)
-    except:
-        logger.exception("Eval")
-    finally:
-        if stat.count > 0:
-            return (stat.average, stat.max)
-        return (0, 0)
+
+    for _ in tqdm(range(nr_eval), **get_tqdm_kwargs()):
+        r = q.get()
+        stat.feed(r)
+    logger.info("Waiting for all the workers to finish the last run...")
+    for k in threads:
+        k.stop()
+    for k in threads:
+        k.join()
+    while q.qsize():
+        r = q.get()
+        stat.feed(r)
+
+    if stat.count > 0:
+        return (stat.average, stat.max)
+    return (0, 0)
 
 
 def eval_model_multithread(pred, nr_eval, get_player_fn):
@@ -143,7 +108,7 @@ def eval_model_multithread(pred, nr_eval, get_player_fn):
     logger.info("Average Score: {}; Max Score: {}".format(mean, max))
 
 
-class Evaluator(Triggerable):
+class Evaluator(Callback):
     def __init__(self, nr_eval, input_names, output_names, get_player_fn):
         self.eval_episode = nr_eval
         self.input_names = input_names
