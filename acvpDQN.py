@@ -23,7 +23,7 @@ from tensorpack.utils.concurrency import *
 import tensorflow as tf
 
 from DQNModel import Model as DQNModel
-from acvpCommon import Evaluator, eval_model_multithread, play_n_episodes
+from acvpCommon import Evaluator, eval_model_multithread, play_n_episodes, play_save_n_episodes
 from atari_wrapper import FrameStack, MapState, FireResetEnv
 from expreplay import ExpReplay
 from atari import AtariPlayer
@@ -136,7 +136,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', help='comma separated list of GPU(s) to use.')
     parser.add_argument('--load', help='load model')
     parser.add_argument('--task', help='task to perform',
-                        choices=['play', 'eval', 'train'], default='train')
+                        choices=['play', 'eval', 'train','acvp'], default='train')
     parser.add_argument('--rom', help='atari rom', required=True)
     parser.add_argument('--algo', help='algorithm',
                         choices=['DQN', 'Double', 'Dueling'], default='Double')
@@ -159,6 +159,8 @@ if __name__ == '__main__':
             output_names=['Qvalue']))
         if args.task == 'play':
             play_n_episodes(get_player(viz=0.01), pred, 100)
+        if args.task == 'acvp':
+	        play_save_n_episodes(get_player(viz=0.01), pred, 100)
         elif args.task == 'eval':
             eval_model_multithread(pred, EVAL_EPISODE, get_player)
     else:

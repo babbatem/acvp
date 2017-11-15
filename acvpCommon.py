@@ -7,6 +7,7 @@ import time
 import multiprocessing
 from tqdm import tqdm
 from six.moves import queue
+import h5py
 
 from tensorpack.utils.concurrency import StoppableThread, ShareSessionThread
 from tensorpack.callbacks import Callback
@@ -37,6 +38,28 @@ def play_one_episode(env, func, render=False):
         if isOver:
             return sum_r
 
+def save_one_episode(env, func, render=False):
+    def predict(s):
+        """
+        Map from observation to action, with 0.001 greedy.
+        """
+        act = func(s[None, :, :, :])[0][0].argmax()
+        if random.random() < 0.001:
+            spc = env.action_space
+            act = spc.sample()
+        return act
+
+    ob = env.reset()
+    sum_r = 0
+    while True:
+        act = predict(ob)
+        ob, r, isOver, info = env.step(act)
+        if render:
+            env.render()
+        sum_r += r
+        if isOver:
+            return sum_r
+
 
 def play_n_episodes(player, predfunc, nr, render=False):
     logger.info("Start Playing ... ")
@@ -44,6 +67,11 @@ def play_n_episodes(player, predfunc, nr, render=False):
         score = play_one_episode(player, predfunc, render=render)
         print("{}/{}, score={}".format(k, nr, score))
 
+def play_save_n_episodes(player, predfunc, nr, render=False):
+    logger.info("Start Playing, and saving! ... ")
+    for k in range(nr):
+        score = save_one_episode(player, predfunc, render=render)
+        print("{}/{}, score={}".format(k, nr, score))
 
 def eval_with_funcs(predictors, nr_eval, get_player_fn):
     """
