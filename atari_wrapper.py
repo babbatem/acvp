@@ -74,6 +74,9 @@ class _FireResetEnv(gym.Wrapper):
             self.env.reset()
         return obs
 
+    def _env(self):
+        return 
+
 
 def FireResetEnv(env):
     if isinstance(env, gym.Wrapper):

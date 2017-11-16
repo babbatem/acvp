@@ -1,0 +1,77 @@
+[32m[1116 16:44:18 @logger.py:74][0m Argv: ./acvpDQN.py --rom qbert.bin
+[32m[1116 16:44:18 @expreplay.py:147][0m Number of Legal actions: 6
+[32m[1116 16:44:18 @param.py:189][0m Use train_log/DQN-qbert/hyper.txt to set hyperparam: 'learning_rate'.
+[32m[1116 16:44:18 @input_source.py:178][0m Setting up the queue 'QueueInput/input_queue' for CPU prefetching ...
+[32m[1116 16:44:18 @registry.py:121][0m conv0 input: [None, 84, 84, 4]
+[32m[1116 16:44:18 @registry.py:129][0m conv0 output: [None, 21, 21, 32]
+[32m[1116 16:44:18 @registry.py:121][0m conv1 input: [None, 21, 21, 32]
+[32m[1116 16:44:18 @registry.py:129][0m conv1 output: [None, 11, 11, 64]
+[32m[1116 16:44:18 @registry.py:121][0m conv2 input: [None, 11, 11, 64]
+[32m[1116 16:44:18 @registry.py:129][0m conv2 output: [None, 11, 11, 64]
+[32m[1116 16:44:18 @registry.py:121][0m fc0 input: [None, 11, 11, 64]
+[32m[1116 16:44:18 @registry.py:129][0m fc0 output: [None, 512]
+[32m[1116 16:44:18 @registry.py:121][0m fct input: [None, 512]
+[32m[1116 16:44:18 @registry.py:129][0m fct output: [None, 6]
+[32m[1116 16:44:18 @registry.py:121][0m target/conv0 input: [None, 84, 84, 4]
+[32m[1116 16:44:18 @registry.py:129][0m target/conv0 output: [None, 21, 21, 32]
+[32m[1116 16:44:18 @registry.py:121][0m target/conv1 input: [None, 21, 21, 32]
+[32m[1116 16:44:18 @registry.py:129][0m target/conv1 output: [None, 11, 11, 64]
+[32m[1116 16:44:18 @registry.py:121][0m target/conv2 input: [None, 11, 11, 64]
+[32m[1116 16:44:18 @registry.py:129][0m target/conv2 output: [None, 11, 11, 64]
+[32m[1116 16:44:18 @registry.py:121][0m target/fc0 input: [None, 11, 11, 64]
+[32m[1116 16:44:18 @registry.py:129][0m target/fc0 output: [None, 512]
+[32m[1116 16:44:18 @registry.py:121][0m target/fct input: [None, 512]
+[32m[1116 16:44:18 @registry.py:129][0m target/fct output: [None, 6]
+[32m[1116 16:44:19 @gradproc.py:75][0m [5m[31mWRN[0m No gradient w.r.t these trainable variables: target/conv0/W, target/conv0/b, target/conv0/alpha, target/conv1/W, target/conv1/b, target/conv1/alpha, target/conv2/W, target/conv2/b, target/conv2/alpha, target/fc0/W, target/fc0/b, target/fct/W, target/fct/b
+[32m[1116 16:44:20 @model_utils.py:47][0m [36mModel Parameters: 
+[0mname                  shape               dim
+--------------------  --------------  -------
+conv0/W:0             [8, 8, 4, 32]      8192
+conv0/b:0             [32]                 32
+conv0/alpha:0         []                    1
+conv1/W:0             [4, 4, 32, 64]    32768
+conv1/b:0             [64]                 64
+conv1/alpha:0         []                    1
+conv2/W:0             [3, 3, 64, 64]    36864
+conv2/b:0             [64]                 64
+conv2/alpha:0         []                    1
+fc0/W:0               [7744, 512]     3964928
+fc0/b:0               [512]               512
+fct/W:0               [512, 6]           3072
+fct/b:0               [6]                   6
+target/conv0/W:0      [8, 8, 4, 32]      8192
+target/conv0/b:0      [32]                 32
+target/conv0/alpha:0  []                    1
+target/conv1/W:0      [4, 4, 32, 64]    32768
+target/conv1/b:0      [64]                 64
+target/conv1/alpha:0  []                    1
+target/conv2/W:0      [3, 3, 64, 64]    36864
+target/conv2/b:0      [64]                 64
+target/conv2/alpha:0  []                    1
+target/fc0/W:0        [7744, 512]     3964928
+target/fc0/b:0        [512]               512
+target/fct/W:0        [512, 6]           3072
+target/fct/b:0        [6]                   6[36m
+Total #vars=26, #param=8093010 (30.87 MB assuming all float32)[0m
+[32m[1116 16:44:20 @base.py:132][0m Setup callbacks graph ...
+[32m[1116 16:44:20 @DQNModel.py:98][0m target/conv0/W <- conv0/W
+[32m[1116 16:44:20 @DQNModel.py:98][0m target/conv0/b <- conv0/b
+[32m[1116 16:44:20 @DQNModel.py:98][0m target/conv0/alpha <- conv0/alpha
+[32m[1116 16:44:20 @DQNModel.py:98][0m target/conv1/W <- conv1/W
+[32m[1116 16:44:20 @DQNModel.py:98][0m target/conv1/b <- conv1/b
+[32m[1116 16:44:20 @DQNModel.py:98][0m target/conv1/alpha <- conv1/alpha
+[32m[1116 16:44:20 @DQNModel.py:98][0m target/conv2/W <- conv2/W
+[32m[1116 16:44:20 @DQNModel.py:98][0m target/conv2/b <- conv2/b
+[32m[1116 16:44:20 @DQNModel.py:98][0m target/conv2/alpha <- conv2/alpha
+[32m[1116 16:44:20 @DQNModel.py:98][0m target/fc0/W <- fc0/W
+[32m[1116 16:44:20 @DQNModel.py:98][0m target/fc0/b <- fc0/b
+[32m[1116 16:44:20 @DQNModel.py:98][0m target/fct/W <- fct/W
+[32m[1116 16:44:20 @DQNModel.py:98][0m target/fct/b <- fct/b
+[32m[1116 16:44:20 @predictor_factory.py:54][0m Building predictor tower 'tower-pred-0' on device /gpu:0 ...
+[32m[1116 16:44:20 @summary.py:34][0m Maintain moving average summary of 15 tensors.
+[32m[1116 16:44:23 @base.py:144][0m Creating the session ...
+[32m[1116 16:44:24 @base.py:152][0m Initializing the session ...
+[32m[1116 16:44:24 @base.py:159][0m Graph Finalized.
+[32m[1116 16:44:25 @graph.py:71][0m Running Op RunOp/update_target_network ...
+[32m[1116 16:44:25 @expreplay.py:170][0m Populating replay memory with epsilon=1.0 ...
+[32m[1116 16:44:29 @base.py:194][0m Detected Ctrl-C and exiting main loop.

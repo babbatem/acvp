@@ -16,6 +16,8 @@ import multiprocessing
 import threading
 from collections import deque
 import cv2
+import gym
+from gym import spaces
 
 os.environ['TENSORPACK_TRAIN_API'] = 'v2'   # will become default soon
 from tensorpack import *
@@ -30,6 +32,7 @@ from atari import AtariPlayer
 
 BATCH_SIZE = 64
 IMAGE_SIZE = (84, 84)
+#IMAGE_SIZE = (210, 160, 3)
 FRAME_HISTORY = 4
 ACTION_REPEAT = 4   # aka FRAME_SKIP
 UPDATE_FREQ = 4
@@ -47,15 +50,144 @@ ROM_FILE = None
 METHOD = None
 
 
+class AtariPlayerFull(AtariPlayer):
+
+    def __init__(self, env, **kwargs):
+        super(AtariPlayerFull,self).__init__(env, **kwargs)
+
+    def _current_state(self):
+        """
+        :returns: a gray-scale (h, w) uint8 image
+        """
+        ret = self._grab_raw_image()
+        # max-pooled over the last screen
+        ret = np.maximum(ret, self.last_raw_screen)
+        if self.viz:
+            if isinstance(self.viz, float):
+                cv2.imshow(self.windowname, ret)
+                time.sleep(self.viz)
+        ret = ret.astype('float32')
+        # 0.299,0.587.0.114. same as rgb2y in torch/image
+        ret_color = ret
+        ret = cv2.cvtColor(ret, cv2.COLOR_RGB2GRAY)
+        return ret.astype('uint8'), ret_color.astype('uint8') # to save some memory
+
+    def _step(self, act):
+        oldlives = self.ale.lives()
+        r = 0
+        for k in range(self.frame_skip):
+            if k == self.frame_skip - 1:
+                self.last_raw_screen = self._grab_raw_image()
+            r += self.ale.act(self.actions[act])
+            newlives = self.ale.lives()
+            if self.ale.game_over() or \
+                    (self.live_lost_as_eoe and newlives < oldlives):
+                break
+
+        self.current_episode_score.feed(r)
+        trueIsOver = isOver = self.ale.game_over()
+        if self.live_lost_as_eoe:
+            isOver = isOver or newlives < oldlives
+
+        info = {'score': self.current_episode_score.sum, 'gameOver': trueIsOver}
+        return self._current_state(), r, isOver, info
+
+
+class MapState(gym.ObservationWrapper):
+    def __init__(self, env, map_func):
+        gym.ObservationWrapper.__init__(self, env)
+        self._func = map_func
+
+    def _grab_raw_image(self):
+        """
+        :returns: the current 3-channel image
+        """
+        return env._grab_raw_image()
+
+    def _observation(self, obs):
+        return self._func(obs)
+
+
+class FrameStack(gym.Wrapper):
+    def __init__(self, env, k):
+        """Buffer observations and stack across channels (last axis)."""
+        gym.Wrapper.__init__(self, env)
+        self.k = k
+        self.frames = deque([], maxlen=k)
+        shp = env.observation_space.shape
+        chan = 1 if len(shp) == 2 else shp[2]
+        self._base_dim = len(shp)
+        self.observation_space = spaces.Box(low=0, high=255, shape=(shp[0], shp[1], chan * k))
+
+    def _reset(self):
+        """Clear buffer and re-fill by duplicating the first observation."""
+        ob = self.env.reset()
+        for _ in range(self.k - 1):
+            self.frames.append(np.zeros_like(ob))
+        self.frames.append(ob)
+        return self._observation()
+
+    def _step(self, action):
+        ob, reward, done, info = self.env.step(action)
+        self.frames.append(ob)
+        return self._observation(), reward, done, info
+
+    def _observation(self):
+        assert len(self.frames) == self.k
+        if self._base_dim == 2:
+            return np.stack(self.frames, axis=-1)
+        else:
+            return np.concatenate(self.frames, axis=2)
+
 def get_player(viz=False, train=False):
-    env = AtariPlayer(ROM_FILE, frame_skip=ACTION_REPEAT, viz=viz,
+    play = AtariPlayer(ROM_FILE, frame_skip=ACTION_REPEAT, viz=viz,
                       live_lost_as_eoe=train, max_num_frames=30000)
-    env = FireResetEnv(env)
+    env = FireResetEnv(play)
     env = MapState(env, lambda im: cv2.resize(im, IMAGE_SIZE))
     if not train:
         # in training, history is taken care of in expreplay buffer
         env = FrameStack(env, FRAME_HISTORY)
     return env
+
+def save_one_episode(env, func, render=False):
+    def predict(s):
+        """
+        Map from observation to action, with 0.001 greedy.
+        """
+        act = func(s[None, :, :, :])[0][0].argmax()
+        if random.random() < 0.001:
+            spc = env.action_space
+            act = spc.sample()
+        return act
+
+
+    ob = env.reset()
+    ob_rgb = env.env.env.env._grab_raw_image()
+    sum_r = 0
+    while True:
+        act = predict(ob)
+        ob, r, isOver, info = env.step(act)
+        ob_rgb = env.env.env.env._grab_raw_image()
+        print(ob_rgb)
+        cv2.imshow('test', ob_rgb)
+        if render:
+            env.render()
+        sum_r += r
+        if isOver:
+            return sum_r
+
+def play_save_n_episodes(player, predfunc, nr, render=False):
+    logger.info("Start Playing, and saving! ... ")
+    for k in range(nr):
+        score = save_one_episode(player, predfunc, render=render)
+        print("{}/{}, score={}".format(k, nr, score))
+
+
+def play_n_episodes(player, predfunc, nr, render=False):
+    logger.info("Start Playing ... ")
+    for k in range(nr):
+        score = play_one_episode(player, predfunc, render=render)
+        print("{}/{}, score={}".format(k, nr, score))
 
 
 class Model(DQNModel):
