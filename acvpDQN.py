@@ -66,11 +66,13 @@ class AtariPlayerFull(AtariPlayer):
             if isinstance(self.viz, float):
                 cv2.imshow(self.windowname, ret)
                 time.sleep(self.viz)
+
+        cv2.imshow(self.windowname, ret)
         ret = ret.astype('float32')
         # 0.299,0.587.0.114. same as rgb2y in torch/image
         ret_color = ret
         ret = cv2.cvtColor(ret, cv2.COLOR_RGB2GRAY)
-        return ret.astype('uint8'), ret_color.astype('uint8') # to save some memory
+        return ret.astype('uint8')#, ret_color.astype('uint8') # to save some memory
 
     def _step(self, act):
         oldlives = self.ale.lives()
@@ -98,11 +100,6 @@ class MapState(gym.ObservationWrapper):
         gym.ObservationWrapper.__init__(self, env)
         self._func = map_func
 
-    def _grab_raw_image(self):
-        """
-        :returns: the current 3-channel image
-        """
-        return env._grab_raw_image()
 
     def _observation(self, obs):
         return self._func(obs)
@@ -167,9 +164,10 @@ def save_one_episode(env, func, render=False):
     while True:
         act = predict(ob)
         ob, r, isOver, info = env.step(act)
-        ob_rgb = env.env.env.env._grab_raw_image()
-        print(ob_rgb)
-        cv2.imshow('test', ob_rgb)
+        #ob_rgb = env.env.env.env.last_raw_screen
+        #assert(ob_rgb)
+        #print(ob_rgb)
+        #cv2.imshow('test', ob_rgb)
         if render:
             env.render()
         sum_r += r
