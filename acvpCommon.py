@@ -7,8 +7,6 @@ import time
 import multiprocessing
 from tqdm import tqdm
 from six.moves import queue
-import h5py
-import numpy as np
 
 from tensorpack.utils.concurrency import StoppableThread, ShareSessionThread
 from tensorpack.callbacks import Callback
@@ -55,10 +53,12 @@ def save_one_episode(env, func, render=False):
     while True:
         act = predict(ob)
         ob, r, isOver, info = env.step(act)
+        env.env.env.env.action_file.write(str(act) + ' ' + str(env.env.env.env.step_count) + '\n')
         if render:
             env.render()
         sum_r += r
         if isOver:
+            env.env.env.env.step_count += 1000
             return sum_r
 
 

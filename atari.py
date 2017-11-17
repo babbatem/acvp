@@ -35,7 +35,6 @@ class AtariPlayer(gym.Env):
         score: the accumulated reward in the current game
         gameOver: True when the current game is Over
     """
-
     def __init__(self, rom_file, viz=0,
                  frame_skip=4, nullop_start=30,
                  live_lost_as_eoe=True, max_num_frames=0):
@@ -97,6 +96,11 @@ class AtariPlayer(gym.Env):
         self.frame_skip = frame_skip
         self.nullop_start = nullop_start
 
+        self.step_count = 0
+        self.save_dir = ''
+        self.save_flag = False
+        self.action_file = ''
+
         self.current_episode_score = StatCounter()
 
         self.action_space = spaces.Discrete(len(self.actions))
@@ -118,15 +122,21 @@ class AtariPlayer(gym.Env):
         """
         :returns: a gray-scale (h, w) uint8 image
         """
+        self.step_count += 1
+        # print(self.step_count)
         ret = self._grab_raw_image()
+        if self.save_flag:
+            cv2.imwrite(self.save_dir + "/frame_step_" + str(self.step_count).zfill(8) + ".jpg", ret)
+
         # max-pooled over the last screen
         ret = np.maximum(ret, self.last_raw_screen)
         if self.viz:
             if isinstance(self.viz, float):
                 cv2.imshow(self.windowname, ret)
-                                print('displaying image')
-
                 cv2.waitKey(int(self.viz* 1000))
+
+                # print('displaying image')
+                
                 #tme.sleep(self.viz)
         ret = ret.astype('float32')
         # 0.299,0.587.0.114. same as rgb2y in torch/image
