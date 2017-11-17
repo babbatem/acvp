@@ -174,6 +174,28 @@ def save_one_episode(env, func, render=False):
         if isOver:
             return sum_r
 
+def play_one_episode(env, func, render=True):
+    def predict(s):
+        """
+        Map from observation to action, with 0.001 greedy.
+        """
+        act = func(s[None, :, :, :])[0][0].argmax()
+        if random.random() < 0.001:
+            spc = env.action_space
+            act = spc.sample()
+        return act
+
+    ob = env.reset()
+    sum_r = 0
+    while True:
+        act = predict(ob)
+        ob, r, isOver, info = env.step(act)
+        if render:
+            env.env.env.env.env.render()
+        sum_r += r
+        if isOver:
+            return sum_r
+
 def play_save_n_episodes(player, predfunc, nr, render=False):
     logger.info("Start Playing, and saving! ... ")
     for k in range(nr):
@@ -181,7 +203,7 @@ def play_save_n_episodes(player, predfunc, nr, render=False):
         print("{}/{}, score={}".format(k, nr, score))
 
 
-def play_n_episodes(player, predfunc, nr, render=False):
+def play_n_episodes(player, predfunc, nr, render=True):
     logger.info("Start Playing ... ")
     for k in range(nr):
         score = play_one_episode(player, predfunc, render=render)
