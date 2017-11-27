@@ -1,4 +1,0 @@
-#!/bin/bash
-source ~/projects/tensorpack/bin/activate
-cd ~/projects/tensorpack/acvp
-./acvpDQN.py --rom qbert.bin --task acvp --load model-2825000.data-00000-of-00001
