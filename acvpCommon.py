@@ -107,7 +107,7 @@ def play_n_episodes(player, predfunc, nr, render=False):
 def play_save_n_episodes(player, predfunc, nr, render=False):
     logger.info("Start Playing, and saving! ... ")
     for k in range(nr):
-        dir = '/data/people/babbatem/acvp/' + 'ep' + str(k)
+        dir = '/data/people/babbatem/frames/' + 'ep' + str(k)
  #       dir = '/Users/abba/projects/acvp/acvp/frames/' + 'ep' + str(k)
         os.makedirs(dir)
         player.env.env.env.save_dir = dir
