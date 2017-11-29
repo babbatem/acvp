@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # File: atari.py
-# Author: Yuxin Wu <ppwwyyxxc@gmail.com>
+# Author: Yuxin Wu <ppwwyyxxc@gmail.com> //// plus ya boi
 
 import numpy as np
 import time
@@ -125,8 +125,6 @@ class AtariPlayer(gym.Env):
         self.step_count += 1
         # print(self.step_count)
         ret = self._grab_raw_image()
-        if self.save_flag:
-            cv2.imwrite(self.save_dir + "/frame_step_" + str(self.step_count).zfill(8) + ".jpg", ret)
 
         # max-pooled over the last screen
         ret = np.maximum(ret, self.last_raw_screen)
@@ -165,6 +163,11 @@ class AtariPlayer(gym.Env):
         oldlives = self.ale.lives()
         r = 0
         for k in range(self.frame_skip):
+            if self.save_flag:
+                ret = self._grab_raw_image()
+                cv2.imwrite(self.save_dir + "/frame_step_" + str(self.step_count).zfill(8) + ".jpg", ret)
+                self.action_file.write(str(act) + ' ' + str(self.step_count) + '\n')
+
             if k == self.frame_skip - 1:
                 self.last_raw_screen = self._grab_raw_image()
             r += self.ale.act(self.actions[act])
