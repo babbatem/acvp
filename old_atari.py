@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # File: atari.py
-# Author: Yuxin Wu <ppwwyyxxc@gmail.com> //// plus ya boi
+# Author: Yuxin Wu <ppwwyyxxc@gmail.com>
 
 import numpy as np
 import time
@@ -100,7 +100,6 @@ class AtariPlayer(gym.Env):
         self.save_dir = ''
         self.save_flag = False
         self.action_file = ''
-        self.OG_action_file = ''
 
         self.current_episode_score = StatCounter()
 
@@ -123,8 +122,12 @@ class AtariPlayer(gym.Env):
         """
         :returns: a gray-scale (h, w) uint8 image
         """
+        self.step_count += 1
         # print(self.step_count)
         ret = self._grab_raw_image()
+        # NOT HERE - DO IT BELOW IN _STEP
+        if self.save_flag:
+            cv2.imwrite(self.save_dir + "/frame_step_" + str(self.step_count).zfill(8) + ".jpg", ret)
 
         # max-pooled over the last screen
         ret = np.maximum(ret, self.last_raw_screen)
@@ -152,10 +155,6 @@ class AtariPlayer(gym.Env):
         for k in range(n):
             if k == n - 1:
                 self.last_raw_screen = self._grab_raw_image()
-                if self.save_flag:
-                    cv2.imwrite(self.save_dir + "/frame_step_" + str(self.step_count).zfill(8) + ".jpg", self.last_raw_screen)
-                    self.action_file.write(str(0) + ' ' + str(self.step_count) + '\n')
-                    self.OG_action_file.write(str(0) + ' ' + str(self.step_count) + '\n')
             self.ale.act(0)
 
     def _reset(self):
@@ -167,16 +166,9 @@ class AtariPlayer(gym.Env):
         oldlives = self.ale.lives()
         r = 0
         for k in range(self.frame_skip):
-            self.step_count += 1
             if k == self.frame_skip - 1:
                 self.last_raw_screen = self._grab_raw_image()
             r += self.ale.act(self.actions[act])
-            if self.save_flag:
-                ret = self._grab_raw_image()
-                cv2.imwrite(self.save_dir + "/frame_step_" + str(self.step_count).zfill(8) + ".jpg", ret)
-                self.action_file.write(str(act) + ' ' + str(self.step_count) + '\n')
-                self.OG_action_file.write(str(act) + ' ' + str(self.step_count) + '\n')
-
             newlives = self.ale.lives()
             if self.ale.game_over() or \
                     (self.live_lost_as_eoe and newlives < oldlives):

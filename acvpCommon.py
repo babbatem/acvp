@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # File: common.py
 # Author: Yuxin Wu <ppwwyyxxc@gmail.com>
+import os
 import random
 import time
 import multiprocessing
@@ -58,7 +59,7 @@ def save_one_episode(env, func, k, render=False):
             env.render()
         sum_r += r
         if isOver:
-            env.env.env.env.step_count += 1000
+            # env.env.env.env.step_count += 1000
             return sum_r
 
 # def acvplay(env, func, acvp, pred_steps, arch, render=False):
@@ -106,6 +107,12 @@ def play_n_episodes(player, predfunc, nr, render=False):
 def play_save_n_episodes(player, predfunc, nr, render=False):
     logger.info("Start Playing, and saving! ... ")
     for k in range(nr):
+        dir = '/data/people/babbatem/acvp/' + 'ep' + str(k)
+ #       dir = '/Users/abba/projects/acvp/acvp/frames/' + 'ep' + str(k)
+        os.makedirs(dir)
+        player.env.env.env.save_dir = dir
+        player.env.env.env.action_file = open(dir + '/actions.txt', 'w')
+#        player.env.env.env.step_count = 0
         score = save_one_episode(player, predfunc, k, render=render)
         print("{}/{}, score={}".format(k, nr, score))
 

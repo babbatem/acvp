@@ -55,12 +55,12 @@ def get_player(viz=False, train=False, save=False):
                       live_lost_as_eoe=train, max_num_frames=30000)
     
     if save:
-#        dir = '/data/people/babbatem/' + str(time.time()) # change username as needed
-        dir = '/Users/abba/projects/acvp/acvp/frames'
+        dir = '/data/people/babbatem/acvp'
+        # dir = '/Users/abba/projects/acvp/acvp/frames'
         os.makedirs(dir)
         play.save_dir = dir
         play.save_flag = True
-        play.action_file = open(dir + '/actions.txt', 'w')
+        play.OG_action_file = open(dir + '/actions.txt', 'w')
 
     env = FireResetEnv(play)
     env = MapState(env, lambda im: cv2.resize(im, IMAGE_SIZE))
