@@ -1,6 +1,11 @@
 #!/usr/bin/python
 
 import tensorflow as tf
+from tensorpack import *
+from tensorpack.tfutils import get_global_step_var
+from tensorpack.tfutils.scope_utils import auto_reuse_variable_scope
+
+
 import numpy as np
 import cv2
 
@@ -19,6 +24,59 @@ def timestamp():
 def show_img(img, s):
     cv2.imshow("MyImage", img)
     cv2.waitKey(s*1000)
+
+class Model(ModelDesc):
+
+
+
+    def _get_inputs(self):
+        return [InputDesc(tf.float32, (None, 210, 160, 12), 'input'),
+                InputDesc(tf.float32, (None, 210, 160, 3), 'label'),
+                InputDesc(tf.int32, (None,), 'action')]
+
+    @auto_reuse_variable_scope   
+    def next_frame(self, image, action):
+        l = (LinearWrap(image)
+            .Conv2D('conv0', out_channel=64, kernel_shape=8)
+            .Conv2D('conv1', out_channel=128, kernel_shape=6)
+            .Conv2D('conv2', out_channel=128, kernel_shape=6)
+            .Conv2D('conv3', out_channel=128, kernel_shape=4)
+            .FullyConnected('fc0', 2048, nl=tf.nn.relu)
+            .FullyConnected('fc1', 2048, nl=tf.identity)())
+        l = tf.tensordot(l, FullyConnected('fca', tf.one_hot(action, NUM_ACTIONS), 2048, nl=tf.identity))
+        l = (LinearWrap(l)
+            .FullyConnected('fc3', 2048, nl=tf.identity)
+            .FullyConnected('fc4', 2048, nl=tf.nn.relu)
+            .Deconv2D('deconv1', 128, 4)
+            .Deconv2D('deconv2', 128, 6)
+            .Deconv2D('deconv3', 128, 6)
+            .Deconv2D('deconv4', 3, 8, nl=tf.identity)())
+        return l
+
+    def _build_graph(self, inputs):
+        with argscope([Conv2D, Deconv2D], nl=tf.nn.relu, use_bias=True, stride=2):
+            image, label, action = inputs
+            with tf.variable_scope('A'):
+                l = next_frame()
+                image[]
+                l = next_frame(())
+
+
+        viz = (l + 1.0) * 128
+        viz = tf.cast(tf.clip_by_value(viz, 0, 255), tf.uint8, name='viz')
+        tf.summary.image('vizsum', viz, max_outputs=30)
+
+        loss = tf.squared_difference(l, label)
+        return loss
+
+    def _get_optimizer(self):
+        learning_rate = tf.get_variable('learning_rate', initializer=2e-4, trainable=False)
+        step = get_global_step_var() # get_global_step()
+        learning_rate = tf.cond(step % 10000, lambda: learning_rate.assign(learning_rate * .9), lambda: learning_rate)
+        return tf.train.RMSPropOptimizer(learning_rate, momentum=tf.Constant(0.9), epsilon=0.01)
+
+
+
 
 def conv(input, kernel, depth, in_channels, stride, h_pad, v_pad):
     # UNKNOWN: Initialization range?
@@ -210,7 +268,14 @@ class ACVPnet:
     def conv1ChannelSize(self, channel_size):
         return conv(self.frames, 8, 64, channel_size, 2, 0, 1)
 
-    def networkEncoder(self):
+    
+
+
+
+
+
+                
+
         # encoder
         c1 = None
         if self.model_type == "cnn" or self.model_type == "naff":
