@@ -100,7 +100,6 @@ class AtariPlayer(gym.Env):
         self.save_dir = ''
         self.save_flag = False
         self.action_file = ''
-        self.OG_action_file = ''
 
         self.current_episode_score = StatCounter()
 
@@ -155,7 +154,6 @@ class AtariPlayer(gym.Env):
                 if self.save_flag:
                     cv2.imwrite(self.save_dir + "/frame_step_" + str(self.step_count).zfill(8) + ".jpg", self.last_raw_screen)
                     self.action_file.write(str(0) + ' ' + str(self.step_count) + '\n')
-                    self.OG_action_file.write(str(0) + ' ' + str(self.step_count) + '\n')
             self.ale.act(0)
 
     def _reset(self):
@@ -175,7 +173,6 @@ class AtariPlayer(gym.Env):
                 ret = self._grab_raw_image()
                 cv2.imwrite(self.save_dir + "/frame_step_" + str(self.step_count).zfill(8) + ".jpg", ret)
                 self.action_file.write(str(act) + ' ' + str(self.step_count) + '\n')
-                self.OG_action_file.write(str(act) + ' ' + str(self.step_count) + '\n')
 
             newlives = self.ale.lives()
             if self.ale.game_over() or \
