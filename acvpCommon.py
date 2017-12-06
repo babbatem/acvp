@@ -8,12 +8,14 @@ import time
 import multiprocessing
 from tqdm import tqdm
 from six.moves import queue
+import numpy as np
 
 from tensorpack.utils.concurrency import StoppableThread, ShareSessionThread
 from tensorpack.callbacks import Callback
 from tensorpack.utils import logger
 from tensorpack.utils.stats import StatCounter
 from tensorpack.utils.utils import get_tqdm_kwargs
+
 # import from Matt as acvp_net
 
 
@@ -39,40 +41,52 @@ def play_one_episode(env, func, render=False):
         if isOver:
             return sum_r
 
-# def acvplay(env, func, acvp, pred_steps, arch, render=False):
-#     def predict(s):
-#         """
-#         Map from observation to action, with 0.001 greedy.
-#         """
-#         act = func(s[None, :, :, :])[0][0].argmax()
-#         if random.random() < 0.001:
-#             spc = env.action_space
-#             act = spc.sample()
-#         return act
+def acvplay(env, func, acvp, pred_steps, arch, render=False):
+    def predict(s):
+        """
+        Map from observation to action, with 0.001 greedy.
+        """
+        act = func(s[None, :, :, :])[0][0].argmax()
+        if random.random() < 0.001:
+            spc = env.action_space
+            act = spc.sample()
+        return act
 
-#     ob = env.reset()
-#     sum_r = 0
-#     buffer = []
-#     buffer.append(env.env.env.env._grab_raw_image())
-#     k = 0
-#     while True:
-#         act = predict(ob)
-#         ob, r, isOver, info = env.step(act)
-#         if arch == 'cnn':
-#             buffer.append(env.env.env.env._grab_raw_image())
-#             if len(buffer) >= 4:
-#                 buffer.pop(0)
-#         if (k % pred_steps == 0):
-#             if arch == cnn:
-#                 ob = acvp(buffer,action)
-#             else:
-#                 ob = acvp(env.env.env.env._grab_raw_image())
-#         if render:
-#             env.render()
-#         sum_r += r
-#         k = k + 1
-#         if isOver:
-#             return sum_r
+    ob = env.reset()
+    frame_0 = env.env.env.env._grab_raw_image()
+    sum_r = 0
+    pred_buffer = []
+    for i in np.arange(4):
+        pred_buffer.append(frame_0)
+
+    
+    k = 0
+    while True:
+        act = predict(ob)
+        ob, r, isOver, info = env.step(act)
+        last_four_real_full_res = info['last_four']
+        pred_buffer.append(last_four_real_full_res)
+        print(len(pred_buffer[-1]))
+        # if (k % pred_steps == 0):
+        #     # given a real frame:
+        #     # don't modify ob - let it pass and select action according to real frame
+        #     # append last four real, full resolution images to pred_buffer
+        #     # modify __step to also return these, or override __step. stick it in info?
+        #     last_four_real_full_res = info['last_four']
+        #     pred_buffer.append(last_four_real_full_res)
+        # else: 
+        #     # replace ob with a predicted frame, given buffer and action
+        #     # take a step in predicted land, ie, append prediction to buffer
+        #     ob = acvp(pred_buffer,action)
+        #     pred_buffer.append(ob)
+
+        if render:
+            env.render()
+        
+        sum_r += r
+        k = k + 1
+        if isOver:
+            return sum_r
         
 
 def play_n_episodes(player, predfunc, nr, render=False):
@@ -93,11 +107,12 @@ def play_save_n_episodes(player, predfunc, nr, render=False):
         score = play_one_episode(player, predfunc, render=render)
         print("{}/{}, score={}".format(k, nr, score))
 
-def plot_episodes(players, predfunc, nr, arch, render=False):
+def plot_episodes(player, predfunc, nr, arch, render=False):
     logger.info("Generating data for plots")
     blind_steps = np.arange(1, 100, 7)
     blind_steps = np.insert(blind_steps, 1, np.array([2,3,4,5,6,7]))
     # network = acvp_net(arch)
+    network = []
     for i in blind_steps:
         for j in range(nr):
             score = acvplay(player, predfunc, network, i, arch, render=render)

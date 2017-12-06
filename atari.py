@@ -164,13 +164,15 @@ class AtariPlayer(gym.Env):
     def _step(self, act):
         oldlives = self.ale.lives()
         r = 0
+        last_four_frames = []
         for k in range(self.frame_skip):
             self.step_count += 1
             if k == self.frame_skip - 1:
                 self.last_raw_screen = self._grab_raw_image()
             r += self.ale.act(self.actions[act])
+            ret = self._grab_raw_image()
+            last_four_frames.append(ret)
             if self.save_flag:
-                ret = self._grab_raw_image()
                 cv2.imwrite(self.save_dir + "/frame_step_" + str(self.step_count).zfill(8) + ".jpg", ret)
                 self.action_file.write(str(act) + ' ' + str(self.step_count) + '\n')
 
@@ -184,7 +186,7 @@ class AtariPlayer(gym.Env):
         if self.live_lost_as_eoe:
             isOver = isOver or newlives < oldlives
 
-        info = {'score': self.current_episode_score.sum, 'gameOver': trueIsOver}
+        info = {'score': self.current_episode_score.sum, 'gameOver': trueIsOver, 'last_four': last_four_frames}
         return self._current_state(), r, isOver, info
 
 
