@@ -2,6 +2,8 @@
 
 import tensorflow as tf
 from tensorpack import *
+from tensorpack.dataflow.base import RNGDataflow
+from tensorpack.tfutils.summary import add_moving_summary
 from tensorpack.tfutils import get_global_step_var
 from tensorpack.tfutils.scope_utils import auto_reuse_variable_scope
 
@@ -25,13 +27,17 @@ def show_img(img, s):
     cv2.imshow("MyImage", img)
     cv2.waitKey(s*1000)
 
-class Model(ModelDesc):
+class ACVPModel(ModelDesc):
 
+    self.stage = 0
 
+    def __init__(self, stage):
+        super(ACVPModelm self).__init__()
+        self,stage = stage
 
     def _get_inputs(self):
         return [InputDesc(tf.float32, (None, 210, 160, 12), 'input'),
-                InputDesc(tf.float32, (None, 210, 160, 3), 'label'),
+                InputDesc(tf.float32, (None, 210, 160, None), 'label'),
                 InputDesc(tf.int32, (None,), 'action')]
 
     @auto_reuse_variable_scope   
@@ -56,25 +62,52 @@ class Model(ModelDesc):
     def _build_graph(self, inputs):
         with argscope([Conv2D, Deconv2D], nl=tf.nn.relu, use_bias=True, stride=2):
             image, label, action = inputs
+            first_labels = label[:, :, :, :3]
             with tf.variable_scope('A'):
-                l = next_frame()
-                image[]
-                l = next_frame(())
+                nextf = next_frame(image, action)
+                if stage == 1:
+                    l = tf.concat(image[:, :, :, 3:], nextf, axis=3)
+
 
 
         viz = (l + 1.0) * 128
         viz = tf.cast(tf.clip_by_value(viz, 0, 255), tf.uint8, name='viz')
         tf.summary.image('vizsum', viz, max_outputs=30)
 
-        loss = tf.squared_difference(l, label)
+        losses = [] 
+        losses.append(tf.squared_difference(l, label))
+        loss =1 tf.add_n(loss, name='total_loss')
+        add_moving_summary(loss)
         return loss
 
     def _get_optimizer(self):
         learning_rate = tf.get_variable('learning_rate', initializer=2e-4, trainable=False)
         step = get_global_step_var() # get_global_step()
         learning_rate = tf.cond(step % 10000, lambda: learning_rate.assign(learning_rate * .9), lambda: learning_rate)
-        return tf.train.RMSPropOptimizer(learning_rate, momentum=tf.Constant(0.9), epsilon=0.01)
+        return tf.train.RMSPropOptimizer(learning_rate, decay=0.95, momentum=tf.Constant(0.9), epsilon=0.01)
 
+class AtariReplayDataflow(RNGDataFlow):
+    def __init__(self, datadirs, shuffle=True, batch_size=32):
+        def chunk(n, lst):
+            n = min(n, len(lst)-1)   
+            return [lst[i:i+n] for i in range(len(lst) - n+1)]
+        self.shuffle = shuffle
+        items = readFilenamesAndActions(datadirs)
+        self.items = chunk(batch_size, items)
+    
+
+    def size(self):
+        # Return size of dataset
+        return len(self.items)
+
+    def get_data(self):
+        def read_item(item):
+            return [cv2.imread(item[0]), item[1]]
+        idxs = np.arange(self.size())
+        if self.shuffle:
+            self.rng.shuffle()
+        for idx in idxs:
+            yield read_item(self.items[idx])
 
 
 
@@ -400,6 +433,10 @@ def filenamesToImages(filenames):
             sys.exit()
         images.append(img)
     return np.array(images)
+
+# <data_dir>/ep00x/all start from zero actions.txt
+# action, yielded frame
+
 
 def readFilenamesAndActions(directories):
     # One list is added for each episode
