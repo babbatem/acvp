@@ -96,21 +96,21 @@ def play_n_episodes(player, predfunc, nr, render=False):
     score = np.zeros(nr)
     for k in range(nr):
      	score[k] = play_one_episode(player, predfunc, render=render)
-        print("{}/{}, score={}".format(k, nr, score))
+		print("{}/{}, score={}".format(k, nr, score))
     np.savetxt('/Users/abba/projects/acvp/acvp/scores.out', score)
 
 def play_save_n_episodes(player, predfunc, nr, render=False):
-    logger.info("Start Playing, and saving! ... ")
-    score = np.zeros(nr)
-    for k in range(nr):
-        dir = '/data/people/babbatem/dataset03/' + 'ep' + str(k).zfill(3)
-        # dir = '/Users/abba/projects/acvp/acvp/frames/' + 'ep' + str(k).zfill(3)
-        os.makedirs(dir)
-        player.env.env.env.save_dir = dir
-        player.env.env.env.action_file = open(dir + '/actions.txt', 'w')
-        player.env.env.env.step_count = 0
-        score = play_one_episode(player, predfunc, render=render)
-        print("{}/{}, score={}".format(k, nr, score))
+	logger.info("Start Playing, and saving! ... ")
+	score = np.zeros(nr)
+	for k in range(nr):
+		dir = '/data/people/babbatem/dataset03/' + 'ep' + str(k).zfill(3)
+		# dir = '/Users/abba/projects/acvp/acvp/frames/' + 'ep' + str(k).zfill(3)
+		os.makedirs(dir)
+		player.env.env.env.save_dir = dir
+		player.env.env.env.action_file = open(dir + '/actions.txt', 'w')
+		player.env.env.env.step_count = 0
+		score = play_one_episode(player, predfunc, render=render)
+		print("{}/{}, score={}".format(k, nr, score))
 
 def plot_episodes(player, predfunc, nr, arch, render=False):
     logger.info("Generating data for plots")
