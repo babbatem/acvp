@@ -25,7 +25,7 @@ from tensorpack.utils.concurrency import *
 import tensorflow as tf
 
 from DQNModel import Model as DQNModel
-from acvpCommon import Evaluator, eval_model_multithread, play_n_episodes, play_save_n_episodes
+from acvpCommon import Evaluator, eval_model_multithread, play_n_episodes, play_save_n_episodes, plot_episodes
 from atari_wrapper import FrameStack, MapState, FireResetEnv
 from expreplay import ExpReplay
 from atari import AtariPlayer
@@ -55,7 +55,7 @@ def get_player(viz=False, train=False, save=False):
                       live_lost_as_eoe=train, max_num_frames=30000)
     
     if save:
-        dir = '/data/people/babbatem/dataset'
+        dir = '/data/people/babbatem/dataset03'
         # dir = '/Users/abba/projects/acvp/acvp/frames'
         os.makedirs(dir)
         play.save_dir = dir
@@ -169,7 +169,7 @@ if __name__ == '__main__':
             input_names=['state'],
             output_names=['Qvalue']))
         if args.task == 'play':
-            play_n_episodes(get_player(viz=0.01), pred, 100)
+            play_n_episodes(get_player(viz=0.01), pred, 30)
         if args.task == 'acvp':
 	        play_save_n_episodes(get_player(viz=0,save=True), pred, 100)
         if args.task == 'plots':
