@@ -55,7 +55,7 @@ def get_player(viz=False, train=False, save=False):
                       live_lost_as_eoe=train, max_num_frames=30000)
     
     if save:
-        dir = '/data/people/babbatem/dataset03'
+        dir = '/data/people/babbatem/dataset3'
         # dir = '/Users/abba/projects/acvp/acvp/frames'
         os.makedirs(dir)
         play.save_dir = dir
@@ -171,7 +171,7 @@ if __name__ == '__main__':
         if args.task == 'play':
             play_n_episodes(get_player(viz=0.01), pred, 30)
         if args.task == 'acvp':
-	        play_save_n_episodes(get_player(viz=0,save=True), pred, 100)
+		play_save_n_episodes(get_player(viz=0,save=True), pred, 500)
         if args.task == 'plots':
             plot_episodes(get_player(viz=0), pred, 30, args.arch)
         elif args.task == 'eval':
