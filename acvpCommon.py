@@ -30,10 +30,12 @@ def play_one_episode(env, func, render=False):
             act = spc.sample()
         return act
 
+    spc = env.action_space
     ob = env.reset()
     sum_r = 0
     while True:
-        act = predict(ob)
+        # act = predict(ob)
+        act = spc.sample()
         ob, r, isOver, info = env.step(act)
         if render:
             env.render()
@@ -91,12 +93,15 @@ def acvplay(env, func, acvp, pred_steps, arch, render=False):
 
 def play_n_episodes(player, predfunc, nr, render=False):
     logger.info("Start Playing ... ")
+    score = np.zeros(nr)
     for k in range(nr):
-        score = play_one_episode(player, predfunc, render=render)
+     	score[k] = play_one_episode(player, predfunc, render=render)
         print("{}/{}, score={}".format(k, nr, score))
+    np.savetxt('/Users/abba/projects/acvp/acvp/scores.out', score)
 
 def play_save_n_episodes(player, predfunc, nr, render=False):
     logger.info("Start Playing, and saving! ... ")
+    score = np.zeros(nr)
     for k in range(nr):
         dir = '/data/people/babbatem/dataset/' + 'ep' + str(k).zfill(3)
         # dir = '/Users/abba/projects/acvp/acvp/frames/' + 'ep' + str(k).zfill(3)
@@ -104,20 +109,21 @@ def play_save_n_episodes(player, predfunc, nr, render=False):
         player.env.env.env.save_dir = dir
         player.env.env.env.action_file = open(dir + '/actions.txt', 'w')
         player.env.env.env.step_count = 0
-        score = play_one_episode(player, predfunc, render=render)
         print("{}/{}, score={}".format(k, nr, score))
 
 def plot_episodes(player, predfunc, nr, arch, render=False):
     logger.info("Generating data for plots")
-    blind_steps = np.arange(1, 100, 7)
-    blind_steps = np.insert(blind_steps, 1, np.array([2,3,4,5,6,7]))
+    blind_steps = np.arange(0, 100, 8)
+    blind_steps = np.insert(blind_steps, 1, np.array([4]))
     # network = acvp_net(arch)
     network = []
+    scores = np.arange(20).reshape((4,5))
     for i in blind_steps:
         for j in range(nr):
-            score = acvplay(player, predfunc, network, i, arch, render=render)
-            # write to file
+            score[i][j] = acvplay(player, predfunc, network, i, arch, render=render)
             print("predictive steps {}/{}, repetition {}/{}, score={}".format(i, blind_steps.size, j, nr, score))
+    score_file.write(str(0) + ' ' + str(self.step_count) + '\n')
+
 
 def eval_with_funcs(predictors, nr_eval, get_player_fn):
     """
