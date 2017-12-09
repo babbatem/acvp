@@ -25,7 +25,7 @@ def play_one_episode(env, func, render=False):
         Map from observation to action, with 0.001 greedy.
         """
         act = func(s[None, :, :, :])[0][0].argmax()
-        if random.random() < 0.001:
+        if random.random() < 0.3:
             spc = env.action_space
             act = spc.sample()
         return act
@@ -103,12 +103,13 @@ def play_save_n_episodes(player, predfunc, nr, render=False):
     logger.info("Start Playing, and saving! ... ")
     score = np.zeros(nr)
     for k in range(nr):
-        dir = '/data/people/babbatem/dataset/' + 'ep' + str(k).zfill(3)
+        dir = '/data/people/babbatem/dataset03/' + 'ep' + str(k).zfill(3)
         # dir = '/Users/abba/projects/acvp/acvp/frames/' + 'ep' + str(k).zfill(3)
         os.makedirs(dir)
         player.env.env.env.save_dir = dir
         player.env.env.env.action_file = open(dir + '/actions.txt', 'w')
         player.env.env.env.step_count = 0
+        score = play_one_episode(player, predfunc, render=render)
         print("{}/{}, score={}".format(k, nr, score))
 
 def plot_episodes(player, predfunc, nr, arch, render=False):
