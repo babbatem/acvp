@@ -55,7 +55,7 @@ def get_player(viz=False, train=False, save=False):
                       live_lost_as_eoe=train, max_num_frames=30000)
     
     if save:
-        dir = '/data/people/babbatem/dataset3'
+        dir = '/data/people/babbatem/dataset33'
         # dir = '/Users/abba/projects/acvp/acvp/frames'
         os.makedirs(dir)
         play.save_dir = dir

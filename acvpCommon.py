@@ -34,8 +34,8 @@ def play_one_episode(env, func, render=False):
     ob = env.reset()
     sum_r = 0
     while True:
-        # act = predict(ob)
-        act = spc.sample()
+        act = predict(ob)
+        # act = spc.sample()
         ob, r, isOver, info = env.step(act)
         if render:
             env.render()
@@ -103,7 +103,7 @@ def play_save_n_episodes(player, predfunc, nr, render=False):
 	logger.info("Start Playing, and saving! ... ")
 	score = np.zeros(nr)
 	for k in range(nr):
-		dir = '/data/people/babbatem/dataset3/' + 'ep' + str(k).zfill(3)
+		dir = '/data/people/babbatem/dataset33/' + 'ep' + str(k).zfill(3)
 		# dir = '/Users/abba/projects/acvp/acvp/frames/' + 'ep' + str(k).zfill(3)
 		os.makedirs(dir)
 		player.env.env.env.save_dir = dir
