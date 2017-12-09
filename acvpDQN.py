@@ -171,7 +171,7 @@ if __name__ == '__main__':
         if args.task == 'play':
             play_n_episodes(get_player(viz=0.01), pred, 30)
         if args.task == 'acvp':
-		play_save_n_episodes(get_player(viz=0,save=True), pred, 500)
+            play_save_n_episodes(get_player(viz=0,save=True), pred, 500)
         if args.task == 'plots':
             plot_episodes(get_player(viz=0), pred, 30, args.arch)
         elif args.task == 'eval':
