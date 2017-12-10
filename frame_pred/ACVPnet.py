@@ -28,20 +28,20 @@ def show_img(img, s):
     cv2.waitKey(s*1000)
 
 class ACVPModel(ModelDesc):
-
-    self.stage = 0
-
-    def __init__(self, stage):
-        super(ACVPModelm self).__init__()
-        self,stage = stage
+    def __init__(self, network_type, avg):
+        super(ACVPModel, self).__init__()
+        self.network_type = network_type
+        self.avg = avg
 
     def _get_inputs(self):
-        return [InputDesc(tf.float32, (None, 210, 160, 12), 'input'),
-                InputDesc(tf.float32, (None, 210, 160, None), 'label'),
-                InputDesc(tf.int32, (None,), 'action')]
+        # Images are either concatenated (12 channels in cnn/naff, 3 in rnn)
+        return [InputDesc(tf.float32, (None, 210, 160, None), 'input'),
+                # Give the next 5 images and actions that yield them as labels/actions in all phases
+                InputDesc(tf.float32, (None, 210, 160, 15), 'label'),
+                InputDesc(tf.int32, (None, 5), 'action')]
 
-    @auto_reuse_variable_scope   
-    def next_frame(self, image, action):
+    @auto_reuse_variable_scope
+    def next_frame_cnn(self, image, action):
         l = (LinearWrap(image)
             .Conv2D('conv0', out_channel=64, kernel_shape=8)
             .Conv2D('conv1', out_channel=128, kernel_shape=6)
@@ -59,42 +59,86 @@ class ACVPModel(ModelDesc):
             .Deconv2D('deconv4', 3, 8, nl=tf.identity)())
         return l
 
+    @auto_reuse_variable_scope
+    def next_frame_naff(self, image):
+        l = (LinearWrap(image)
+            .Conv2D('conv0', out_channel=64, kernel_shape=8)
+            .Conv2D('conv1', out_channel=128, kernel_shape=6)
+            .Conv2D('conv2', out_channel=128, kernel_shape=6)
+            .Conv2D('conv3', out_channel=128, kernel_shape=4)
+            .FullyConnected('fc0', 2048, nl=tf.nn.relu)
+            .FullyConnected('fc1', 2048, nl=tf.nn.relu)
+            .FullyConnected('fc1', 2048, nl=tf.nn.relu)
+            .Deconv2D('deconv1', 128, 4)
+            .Deconv2D('deconv2', 128, 6)
+            .Deconv2D('deconv3', 128, 6)
+            .Deconv2D('deconv4', 3, 8, nl=tf.identity)())
+        return l
+
+    @auto_reuse_variable_scope
+    def next_frame_rnn(self, image, action):
+        l = (LinearWrap(image)
+            .Conv2D('conv0', out_channel=64, kernel_shape=8)
+            .Conv2D('conv1', out_channel=128, kernel_shape=6)
+            .Conv2D('conv2', out_channel=128, kernel_shape=6)
+            .Conv2D('conv3', out_channel=128, kernel_shape=4)
+            .FullyConnected('fc0', 2048, nl=tf.nn.relu)
+            # TODO(Aaron): add an LSTM node here
+            # When the recurrent encoding network is trained on 1-step prediction objective, the network is unrolled
+            # through 20 steps and predicts the last 10 frames by taking ground-truth images as input
+            .FullyConnected('fc1', 2048, nl=tf.identity)())
+        l = tf.tensordot(l, FullyConnected('fca', tf.one_hot(action, NUM_ACTIONS), 2048, nl=tf.identity))
+        l = (LinearWrap(l)
+            .FullyConnected('fc3', 2048, nl=tf.identity)
+            .FullyConnected('fc4', 2048, nl=tf.nn.relu)
+            .Deconv2D('deconv1', 128, 4)
+            .Deconv2D('deconv2', 128, 6)
+            .Deconv2D('deconv3', 128, 6)
+            .Deconv2D('deconv4', 3, 8, nl=tf.identity)())
+        return l
+
     def _build_graph(self, inputs):
+        k = tf.get_variable('steps', initializer=1, trainable=False)
+        losses = []
         with argscope([Conv2D, Deconv2D], nl=tf.nn.relu, use_bias=True, stride=2):
             image, label, action = inputs
-            first_labels = label[:, :, :, :3]
             with tf.variable_scope('A'):
-                nextf = next_frame(image, action)
-                if stage == 1:
-                    l = tf.concat(image[:, :, :, 3:], nextf, axis=3)
+                last_img = image
+                for step in range(k):
+                    nextf = next_frame_cnn(last_img, action[:, step]) if self.network_type == "cnn" \
+                        else (next_frame_naff(last_img) if self.network_type == "naff" \
+                        else next_frame_rnn(last_img, action[:, step]))
+                    losses.append(tf.squared_difference(nextf, label[:, :, :, 3*step:3*step+3]))
+                    # Combine the next 3 frames (which could be a combination of real and predicted)
+                    # with the predicted image
+                    last_img = tf.concat(last_img[:, :, :, 3:], nextf, axis=3) if self.network_type == "cnn" or \
+                        self.network_type == "naff" else nextf
 
-
-
-        viz = (l + 1.0) * 128
+        viz = 255*l + self.avg
         viz = tf.cast(tf.clip_by_value(viz, 0, 255), tf.uint8, name='viz')
         tf.summary.image('vizsum', viz, max_outputs=30)
 
-        losses = [] 
-        losses.append(tf.squared_difference(l, label))
-        loss =1 tf.add_n(loss, name='total_loss')
+        loss = tf.add_n(losses, name='total_loss')
+        loss /= (2*k)
         add_moving_summary(loss)
         return loss
 
     def _get_optimizer(self):
-        learning_rate = tf.get_variable('learning_rate', initializer=2e-4, trainable=False)
+        learning_rate = tf.get_variable('learning_rate', initializer=1e-4, trainable=False)
         step = get_global_step_var() # get_global_step()
         learning_rate = tf.cond(step % 10000, lambda: learning_rate.assign(learning_rate * .9), lambda: learning_rate)
         return tf.train.RMSPropOptimizer(learning_rate, decay=0.95, momentum=tf.Constant(0.9), epsilon=0.01)
 
 class AtariReplayDataflow(RNGDataFlow):
-    def __init__(self, datadirs, shuffle=True, batch_size=32):
+    # TODO(Aaron): if model_type=="cnn" or "naff", batch size is reduced to 8 in epochs 4-7.
+    def __init__(self, items, averages, model_type, shuffle=True, batch_size=32):
         def chunk(n, lst):
-            n = min(n, len(lst)-1)   
+            n = min(n, len(lst)-1)
             return [lst[i:i+n] for i in range(len(lst) - n+1)]
         self.shuffle = shuffle
-        items = readFilenamesAndActions(datadirs)
         self.items = chunk(batch_size, items)
-    
+        self.model_type = model_type
+        self.avg = averages
 
     def size(self):
         # Return size of dataset
@@ -102,393 +146,94 @@ class AtariReplayDataflow(RNGDataFlow):
 
     def get_data(self):
         def read_item(item):
-            return [cv2.imread(item[0]), item[1]]
+            # If rnn, just use the most recent frame as input
+            frame_file_list = item[0][-1:] if self.model_type == "rnn" else item[0]
+            frame_list = [cv2.imread(file) for file in frame_file_list]
+            assert((len(frame_list) == 1) if self.model_type == "rnn" else (len(frame_list) == 4))
+            frames = preprocessImages(frame_list[0], self.avg) if self.model_type == "rnn" else \
+                preprocessImages(np.array(frame_list), self.avg).transpose(1, 2, 0, 3).reshape(210, 160, 12)
+
+            actions = item[1]
+            assert(len(actions) == 5)
+
+            next_frame_file_list = item[2]
+            next_frame_list = [cv2.imread(file) for file in next_frame_file_list]
+            assert(len(next_frame_list) == 5)
+            next_frames = np.array(next_frame_list).transpose(1, 2, 0, 3).reshape(210, 160, 15)
+
+            # Returns 4 frames, combined across channels, 5 actions, and 5 frames (combined across channels) yielded
+            # from taking those actions
+            return (frames, actions, next_frames)
+
         idxs = np.arange(self.size())
         if self.shuffle:
             self.rng.shuffle()
         for idx in idxs:
             yield read_item(self.items[idx])
 
-
-
-def conv(input, kernel, depth, in_channels, stride, h_pad, v_pad):
-    # UNKNOWN: Initialization range?
-    conv_filters = tf.Variable(tf.truncated_normal([kernel, kernel, in_channels, depth], stddev=0.1))
-    conv_filters_bias = tf.Variable(tf.truncated_normal([depth], stddev=0.1))
-    # UNKNOWN: PADDING - horizontal different from vertical in TensorFlow/Pack?
-    pad = ""
-    if h_pad == 0 and v_pad == 0:
-        pad = "VALID"
-    else:
-        pad = "SAME"
-    conv = tf.nn.conv2d(input, conv_filters, [1, stride, stride, 1], pad)
-    return tf.nn.bias_add(conv, conv_filters_bias)
-
-def deconv(inpt, kernel, depth, out_channels, stride, h_pad, v_pad):
-    # UNKNOWN: Initialization
-    deconv_filters = tf.Variable(tf.truncated_normal([kernel, kernel, out_channels, depth], stddev=0.1))
-    # TODO(Aaron): Bias, but batch size is unknown. Same with bias in forward4d
-    # deconv_filters_bias = tf.Variable(tf.truncated_normal([depth], stddev=0.1))
-    input_minus_b = inpt#tf.subtract(inpt, deconv_filters_bias)
-
-    # output shape parameter
-    # UNKNOWN: PADDING
-    pad = ""
-    if h_pad == 0 and v_pad == 0:
-        pad = "VALID"
-    else:
-        pad = "SAME"
-    # TODO(Aaron): I haven't had time to determine what output shape of deconvolution should be.
-    # First dimension will probably be batch size/unknown, not sure how to handle that
-    # Last dimension will probably be out_channels..
-    output_shape = []
-    deconv = tf.nn.conv2d_transpose(input_minus_b, deconv_filters, output_shape, strides=[1, stride, stride, 1], padding=pad)
-    # https://stackoverflow.com/questions/43113984/output-shape-of-tf-nn-conv2d-transpose-is-entirely-undefined-even-though-only-ba
-    # tf.reshape()
-    return deconv
-
-def forward4d(inpt, hidden_size, init):
-    W = tf.Variable(tf.random_uniform([int(inpt.get_shape()[3]), hidden_size], minval=-1*init, maxval=init))
-    td = tf.tensordot(inpt, W, [[3], [0]])
-    return td
-    # TODO(Aaron): Though they didn't explicitly mention bias, it should be added.. also, this doesn't work because batch size is unknown
-    # b = tf.Variable(tf.random_uniform([-1, int(inpt.get_shape()[1]), int(inpt.get_shape()[2]), hidden_size], minval=-1*init, maxval=init))
-    # return tf.add(td, b)
-
-def forward(inpt, shape, init):
-    W = tf.Variable(tf.random_uniform(shape, minval=-1*init, maxval=init))
-    b = tf.Variable(tf.random_uniform([shape[1]], minval=-1*init, maxval=init))
-    return tf.add(tf.matmul(inpt, W), b)
-
-class ACVPnet:
-    def __init__(self, model_type, pixel_avgs):
-        self.session = tf.Session()
-        self.model_type = model_type
-        self.pixel_avgs = pixel_avgs
-
-        self.networkPlaceholders()
-        self.networkEncoder()
-        self.decoder_in = None
-
-        # TODO(Aaron): Get these working and uncomment decoder and loss
-        if model_type == "cnn":
-            self.networkTransformationCNN()
-        elif model_type == "rnn":
-            self.networkTransformationRNN()
-        elif model_type == "naff":
-            self.networkTransformationNAFF()
-        else:
-            sys.exit("Unknown model type provided.")
-
-        # self.networkDecoder()
-        # self.networkLoss()
-
-    def loadModel(self, filename, pixel_avgs):
-        # TODO(Aaron, Matt, Ben): After the model is saved correctly, test loading. Make a new script that does this,
-        # and write a function to predict the next frame given a frame history (4 or 1, depending on network) and action
-        
-        pass
-        # Load the model given model filename and np vector of length 3 containing average pixel values
-
-    def train(self, filename_lists, action_lists, model_filename, model_path):
-        """
-        filename_lists: list containing lists of filenames, where each list represents a single episode
-        action_lists: list containing lists of actions. If the corresponding list of filenames contains
-        [frame_step_00000001.jpg, 2.jpg, 3.jpg, ...], the action list for this episode begins with the action
-        taken in frame 4 that results in frame 5
-
-        model_filename and model_path are implemented in the commented-out model_saving - see below
-        """
-
-        # TODO(Aaron): Save the model parameters, and possibly checkpoint after each epoch. Should be able to uncomment
-        # this and self.saver calls below, but I'm not sure
-        # self.saver = tf.train.Saver()
-        
-        # Three training phases, as described in paper:
-        learning_rates = [1e-4, 1e-5, 1e-5]
-        # iterations as stated in paper = [1.5e6, 1e6, 1e6] - Divide by ~5e5 examples, 3 epochs, 2 epochs, 2 epochs
-        epochs = [3, 2, 2]
-        # CNN and Naff batch sizes
-        batch_size_cnn = [32, 8, 8]
-        batch_size_rnn = [4, 4, 4]
-
-        '''
-        # TODO(Aaron): Note about steps (aka k) and loss:
-        Steps are used in loss function. In phase 1, compute loss over 1 predicted frame.
-        
-        In phase 2, use each 210x160x12 frame history to predict next frame (as usual). Then use that frame and
-        history[1:] (210x160x9) to predict subsequent frame 2. Then use 2 predicted frames and history[2:] to predict
-        frame 3. Calculate and sum loss over all 3 images.
-        
-        Phase 3 is similar, though loss is calculated over 5 predicted frames rather than 3.
-        
-        Note that this isn't necessarily possible at the end of a batch unless we pass in additional data, and
-        certainly isn't possible at the end of an episode.
-
-        '''
-        steps = [1, 3, 5]
-
-        # Training loop
-        self.session.run(tf.global_variables_initializer())
-        for phase in range(3):
-            learning_rate = learning_rates[phase]
-            # Used to determine learning rate, as it's multiplied by 0.9 every time 10,000 images are processed
-            num_images_processed = 0
-            # TODO(Aaron): Pass k through to loss calculation
-            k = steps[phase]
-            for epoch in range(epochs[phase]):
-                # Iterate over all episodes
-                for i in range(len(filename_lists)):
-                    # Images for this episode
-                    avg_images_episode = preprocessImages(filenamesToImages(filename_lists[i]), self.pixel_avgs)
-                    if avg_images_episode.shape[0] < 5:
-                        print "This episode has less than 5 images, skipping.", filename_lists[i]
-                        continue
-                    '''
-                    TODO(Aaron): if self.model_type == "cnn" or self.model_type == "naff", concatenate 4 images into
-                    210x160x12 frame histories, which is done below.
-                    else: rnn, so just pass 210x160x3 images - add another branch that skips this concatenation.
-                    all you probably need to do is use avg_images_episode[:-1] as train_input
-                    '''
-                    # Read in images for the current episode
-                    train_input = []
-                    for index in range(avg_images_episode.shape[0]-4):
-                        # Slice of 4 210x160x3 images
-                        frame_hist = avg_images_episode[index:index+4]
-                        # Turn into 210x160x12 image
-                        hist_combined_in_channels = frame_hist.transpose(1, 2, 0, 3).reshape(210, 160, 12)
-                        train_input.append(hist_combined_in_channels)
-
-                    # These should be the same for CNN and RNN
-                    train_label = avg_images_episode[4:]
-                    train_action = action_lists[i]
-                    if len(train_input) != len(train_action) or train_label.shape[0] != len(train_input):
-                        print "Number of training examples don't match up:", len(train_input), "input images,", \
-                            train_label.shape[0], "output images,", len(train_action), "actions. Skipping."
-                        continue
-                    
-                    # TODO(Aaron, Matt): Split this data into batch_size chunks
-                    # TODO(Aaron): Pass in variable learning rate somehow
-                    # num_images_processed += _
-                    # multiply learning rate by 0.9 every 1e5 iterations
-                    self.LR = learning_rates[phase] * np.power(0.9, np.floor(num_images_processed/1e5))
-                    
-                    FD = {self.frames: train_input, self.next_frame: train_label, self.actions: train_action}
-                    return_vals = [self.h]
-                    # TODO(Aaron): Trying to access self.enc_ac at runtime produces an error, but self.h does not
-                    # return_vals = [self.enc_ac]
-                    # InvalidArgumentError Matrix size-incompatible: In[0]: [972,2048], In[1]: [9,2048]
-                    [thing] = self.session.run(return_vals, feed_dict=FD)
-                    print thing.shape
-
-                # Save a copy of the model (checkpoint) after each epoch
-                # save_path = saver.save(session, model_path + "/" + str(phase) + '_' + str(epoch) + '_' + model_filename)
-        # Save at the end of training
-        # save_path = saver.save(session, model_path + "/final_" + model_filename)
-        self.session.close()
-
-    def networkPlaceholders(self):
-        # network model
-
-        # batch_size vector of actions, which will be converted to one-hot when needed
-        self.actions = tf.placeholder(tf.int32, shape=[None])
-        # Batch size by image size by channel size (3-color*4 images for CNN, 3-color for RNN)
-        # Note cv2 image shape: 
-        self.frames = tf.placeholder(tf.float32, shape=[None, 210, 160, None])
-        self.next_frame = tf.placeholder(tf.float32, shape=[None, 210, 160, 3])
-
-    # Used in next step since channel_size varies between model types
-    def conv1ChannelSize(self, channel_size):
-        return conv(self.frames, 8, 64, channel_size, 2, 0, 1)
-
-    
-
-
-
-
-
-                
-
-        # encoder
-        c1 = None
-        if self.model_type == "cnn" or self.model_type == "naff":
-            c1 = self.conv1ChannelSize(12)
-        else:
-            # 3 channel images for RNN
-            c1 = self.conv1ChannelSize(3)
-        r1 = tf.nn.relu(c1)
-        c2 = conv(r1, 6, 128, 64, 2, 1, 1)
-        r2 = tf.nn.relu(c2)
-        c3 = conv(r2, 6, 128, 128, 2, 1, 1)
-        r3 = tf.nn.relu(c3)
-        c4 = conv(r3, 4, 128, 128, 2, 0, 0)
-        self.enc_out = tf.nn.relu(c4)
-
-    def networkTransformationCNN(self):
-
-        # Batch size by NUM_ACTIONS
-        onehot_actions = tf.one_hot(self.actions, NUM_ACTIONS)
-        a = forward(onehot_actions, [NUM_ACTIONS, 2048], 0.1)
-        print "Act", self.actions.get_shape(), onehot_actions.get_shape(), a.get_shape()
-
-        ff1 = forward4d(self.enc_out, 2048, 1.0)
-        relu1 = tf.nn.relu(ff1)
-        # TODO: Selfs here are just for testing
-        self.h = forward4d(relu1, 2048, 1.0)
-        # TODO(Aaron): This works in the model definition, but produces a shape error at runtime. See self.train
-        self.enc_ac = tf.tensordot(self.h, a, [[3], [0]])
-
-        ff2 = forward4d(self.enc_ac, 2048, 1.0)
-        ff3 = forward4d(ff2, 2048, 1.0)
-        self.decoder_in = tf.nn.relu(ff3)
-        
-        print "Decoder shape", self.decoder_in.get_shape()
-
-    def networkTransformationRNN(self):
-        # TODO(RNN)
-        # Clip gradients at [-0.1, 0.1]
-        # When the recurrent encoding network is trained on 1-step prediction objective, the network is unrolled
-        # through 20 steps and predicts the last 10 frames by taking ground-truth images as input
-
-        # Very similar to networkTransformationCNN, LSTM between relu1 and h. See figure 9.
-        pass
-
-    def networkTransformationNAFF(self):
-        ff1 = forward4d(self.enc_out, 2048, 1.0)
-        relu1 = tf.nn.relu(ff1)
-        ff2 = forward4d(relu1, 2048, 1.0)
-        relu2 = tf.nn.relu(ff2)
-        ff3 = forward4d(relu2, 2048, 1.0)
-        self.decoder_in = tf.nn.relu(ff3)
-
-    def networkDecoder(self):
-        # decoder
-        dc1 = deconv(self.decoder_in, 4, 2048, 128, 2, 0, 0)
-        r1 = tf.nn.relu(dc1)
-        print "R1", r1.get_shape()
-        dc2 = deconv(r1, 6, _, 128, 2, 1, 1)
-        r2 = tf.nn.relu(dc2)
-        dc3 = deconv(r2, 6, _, 128, 2, 1, 1)
-        r3 = tf.nn.relu(dc3)
-        self.output_image = deconv(r3, 8, _, 3, 2, 0, 1)
-
-    def networkLoss(self):
-
-        """
-        Paper notes:
-        Given T frame-action pairs,
-        loss: average squared error over K-step predictions
-        1/(2K) sum over i, t, k (from 1 to K)
-        "unrolled" through K time-steps
-        RMSProp [34, 10] is used with momentum of 0.9, (squared) gradient momentum of 0.95,
-        and min squared gradient of 0.01
-        """
-        
-        # TODO(Aaron): Pass variable K here. 1, 3, or 5 depending on phase - see self.train
-        K = None
-        last_predicition = self.output_image
-
-        # TODO(Aaron): As described in comments of self.train, we need to use the network to predict K future images,
-        # and calculate loss on each of them.
-        # TODO(Aaron): Future actions and labels could be in the next batch. See notes in self.train
-        future_action = None
-        future_prediction = None
-        # TODO(Aaron): Calculate loss as described in self.train. Requires generating K predictions through the network
-        err_sum = 0
-        for k in range(K):
-            prediction_k = None # Function of future_action and frame history/old predictions - run through the network
-            squared_pixel_error = np.power(tf.norm(prediction_k - future_prediction), 2)
-            err_sum += squared_pixel_error
-        self.loss = err_sum / (2*K)
-
-        # TODO(Aaron): Pass variable learning rate, maybe through feed_dict?
-        learning_rate = None
-        optimizer = tf.train.RMSPropOptimizer(learning_rate, momentum=tf.Constant(0.9), epsilon=0.01)
-        self.train_op = optimizer.minimize(self.loss)
-
 # Given np array of images and np vector of length 3 containing average pixel values
 def preprocessImages(images, avgs):
     # subtract mean, divide by 255
     return (images - avgs)/255
 
-def calcAvgPixel(frame_lists):
-    # Given list of lists of filenames, calculate average pixel values for each of the 3 channels
+def calcAvgPixel(head_directory):
+    # Given list filenames, calculate average pixel values for each of the 3 channels
     pixel_sums = np.zeros((3))
     num_pixels = 0
-    for frame_list in frame_lists:
-        images = filenamesToImages(frame_list)
-        pixel_sums += images.sum(axis=(0, 1, 2))
-        num_pixels += images.shape[0] * images.shape[1] * images.shape[2]
+    for directory, subdirs, files in os.walk(head_directory):
+        if "actions.txt" not in files:
+            continue
+        files.remove("actions.txt")
+        for file in files:
+            image = cv2.imread(directory + '/' + file)
+            pixel_sums += image.sum(axis=(0, 1))
+            num_pixels += image.shape[0] * image.shape[1] * image.shape[2]
     avg_pixels = pixel_sums / float(num_pixels)
-    print "Average pixel values across all 3 channels:", avg_pixels
     return avg_pixels
 
-# Given list of filenames, return np array of images
-def filenamesToImages(filenames):
-    images = []
-    for imgfile in filenames:
-        img = cv2.imread(imgfile)
-        if img is None:
-            print "Unable to read", imgfile
-            sys.exit()
-        images.append(img)
-    return np.array(images)
+def fileNum2FileName(num):
+    return "frame_step_" + num.zfill(8) + ".jpg"
 
-# <data_dir>/ep00x/all start from zero actions.txt
-# action, yielded frame
-
-
-def readFilenamesAndActions(directories):
-    # One list is added for each episode
-    frame_lists = []
-    action_lists = []
+def readFilenamesAndActions(head_directory):
+    # Returns list of tuples of the form ([list_of_4_frame_filenames], [list_of_5_actions], [list_of_5_frame_filenames])
+    frames_actions_nextframes = []
     img_tot = 0
-    for head_episode_dir in directories:
-        for directory, subdirs, files in os.walk(head_episode_dir):
-            if directory != head_episode_dir:
-                files.sort()
-                if "actions.txt" not in files:
-                    print "Skipping subdirectory", directory, "because it does not contain an actions.txt"
-                    continue
-                files.remove("actions.txt")
-                actionfile = open(directory + "/actions.txt", 'r')
-                action_lines = actionfile.read().split('\n')
-                while '' in action_lines: action_lines.remove('')
-                action_tuples = [line.split() for line in action_lines]
-                if action_tuples[0][1] != '4':
-                    print "First action taken does not yield frame 4. Skipping episode", directory
-                    continue
-                # In the CNN case, we need m=4 frames and an action to predict a 5th frame.
-                # Remove action that yields the 4th frame so the first action yields the 5th frame
-                action_tuples.pop(0)
-                if len(files) < 5:
-                    print "Skipping episode", directory, "because it doesn't contain enough data."
-                    continue
-                if files[:4] != ["frame_step_00000001.jpg", "frame_step_00000002.jpg", "frame_step_00000003.jpg", \
-                    "frame_step_00000004.jpg"]:
-                    print "First four frames not found. Skipping episode", directory
-                    continue
-                skip_ep = False
-                for tup in action_tuples:
-                    corresponding_image = "frame_step_" + tup[1].zfill(8) + ".jpg"
-                    if corresponding_image not in files:
-                        print "Found action", tup[1], "but could not find", corresponding_image, \
-                            ": Skipping episode", directory
+    for directory, subdirs, files in os.walk(head_directory):
+        files.sort()
+        if "actions.txt" not in files:
+            print "Skipping subdirectory", directory, "because it does not contain an actions.txt"
+            continue
+        files.remove("actions.txt")
+        actionfile = open(directory + "/actions.txt", 'r')
+        action_lines = actionfile.read().split('\n')
+        while '' in action_lines: action_lines.remove('')
+        action_tuples = [line.split() for line in action_lines]
+        # In the CNN case, we need m=4 frames and an action to predict a 5th frame.
+        # Remove action that yields the 4th frame so the first action yields the 5th frame
+        if len(files) < 9:
+            print "Skipping episode", directory, "because it doesn't contain enough data."
+            continue
+        skip_ep = False
+        for i in range(len(action_tuples)):
+            if i > 2 and i < len(action_tuples) - 5:
+                frames = [fileNum2FileName(action_tuples[i-3][1]), fileNum2FileName(action_tuples[i-2][1]), \
+                    fileNum2FileName(action_tuples[i-1][1]), fileNum2FileName(action_tuples[i][1])]
+                actions = [int(action_tuples[i+1][0]), int(action_tuples[i+2][0]), int(action_tuples[i+3][0]), \
+                    int(action_tuples[i+4][0]), int(action_tuples[i+5][0])]
+                next_frames = [fileNum2FileName(action_tuples[i+1][1]), fileNum2FileName(action_tuples[i+2][1]), \
+                    fileNum2FileName(action_tuples[i+3][1]), fileNum2FileName(action_tuples[i+4][1]), \
+                    fileNum2FileName(action_tuples[i+5][1])]
+                for j in range(9):
+                    if fileNum2FileName(action_tuples[i-3+j][1]) not in files:
+                        print "Found action", i-j+3, "but could not find", corresponding_image, \
+                            ": Skipping remainder of episode", directory
                         skip_ep = True
-                        break
                 if skip_ep:
-                    continue
-                absfiles = [os.path.abspath(directory + '/' + f) for f in files]
-                only_actions = [int(tup[0]) for tup in action_tuples]
-                # Ensure that each image has a corresponding action, except the first 4
-                if len(absfiles) != len(only_actions) + 4:
-                    print "The number of images and number of actions don't match up. Skipping episode", \
-                        directory
-                    continue
-                frame_lists.append(absfiles)
-                action_lists.append(only_actions)
-                img_tot += len(absfiles)
-    print "Read in a total of", img_tot, "images."
-    if len(frame_lists) != len(action_lists):
-        sys.exit("Somehow, the number of episodes are not equal between frames and actions.")
-    return (frame_lists, action_lists)
+                    break
+                frames_actions_nextframes.append(([os.path.abspath(directory + '/' + f) for f in frames], actions, \
+                    [os.path.abspath(directory + '/' + f) for f in next_frames]))
+                img_tot += 1
+        if skip_ep:
+            continue
+    print "Read in a total of", img_tot, "training examples."
+    return frames_actions_nextframes
