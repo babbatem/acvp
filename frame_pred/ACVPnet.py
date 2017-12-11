@@ -87,7 +87,7 @@ class ACVPModel(ModelDesc):
             .FullyConnected('fc0', 2048, nl=tf.nn.relu)())
             # When the recurrent encoding network is trained on 1-step prediction objective, the network is unrolled
             # through 20 steps and predicts the last 10 frames by taking ground-truth images as input
-        l = 
+	#l = 
         l = FullyConnected('fc1', l, 2048, nl=tf.identity)
         l = tf.tensordot(l, FullyConnected('fca', tf.one_hot(action, NUM_ACTIONS), 2048, nl=tf.identity))
         l = (LinearWrap(l)
@@ -148,9 +148,11 @@ class AtariReplayDataflow(RNGDataFlow):
 
     def get_data(self):
         def read_item(item):
+            for i, thing in enumerate(item):
+                print i, thing
             # If rnn, just use the most recent frame as input
             frame_file_list = item[0][-1:] if self.model_type == "rnn" else item[0]
-            frame_list = [cv2.imread(file) for file in frame_file_list]
+	    frame_list = [cv2.imread(file) for file in frame_file_list]
             assert((len(frame_list) == 1) if self.model_type == "rnn" else (len(frame_list) == 4))
             frames = preprocessImages(frame_list[0], self.avg) if self.model_type == "rnn" else \
                 preprocessImages(np.array(frame_list), self.avg).transpose(1, 2, 0, 3).reshape(210, 160, 12)
@@ -169,7 +171,7 @@ class AtariReplayDataflow(RNGDataFlow):
 
         idxs = np.arange(self.size())
         if self.shuffle:
-            self.rng.shuffle()
+            self.rng.shuffle(idxs)
         for idx in idxs:
             yield read_item(self.items[idx])
 
@@ -247,7 +249,7 @@ def readFilenamesAndActions(head_directory):
                 img_tot += 1
                 if img_tot % 10000 == 0:
                     print "Read in filenames and actions for", img_tot, "training examples"
-                if img_tot >= 500000:
+                if img_tot >= 10000:
                     enough_data = True
                     break
         if skip_ep:

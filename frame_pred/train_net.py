@@ -51,7 +51,7 @@ def main():
         np.savetxt(timestamp() + "_avg_pixels.txt", avgs)
     print "Average pixel values:", avgs
 
-    dataflow = AtariReplayDataflow(items, args.network, avgs, shuffle=True, \
+    dataflow = AtariReplayDataflow(items, avgs, args.network, shuffle=True, \
         batch_size=(batch_size_rnn if args.network == "rnn" else batch_size_cnn_naff))
     # NOTE: Frame combination is handled in AtariReplayDataflow's read_item, these shouldn't be necessary
     # dataflow = MapDataComponent(lambda a: np.concat(a, axis=1), 0)
