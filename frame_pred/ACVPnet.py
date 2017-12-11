@@ -148,26 +148,30 @@ class AtariReplayDataflow(RNGDataFlow):
 
     def get_data(self):
         def read_item(item):
-            for i, thing in enumerate(item):
-                print i, thing
-            # If rnn, just use the most recent frame as input
-            frame_file_list = item[0][-1:] if self.model_type == "rnn" else item[0]
-	    frame_list = [cv2.imread(file) for file in frame_file_list]
-            assert((len(frame_list) == 1) if self.model_type == "rnn" else (len(frame_list) == 4))
-            frames = preprocessImages(frame_list[0], self.avg) if self.model_type == "rnn" else \
-                preprocessImages(np.array(frame_list), self.avg).transpose(1, 2, 0, 3).reshape(210, 160, 12)
+            data_list = []
+            for batch_entry_l in item:
+                # batch_entry_l is list/array of size 1
+                batch_entry = batch_entry_l[0]
+                # If rnn, just use the most recent frame as input
+                frame_file_list = batch_entry[0][-1:] if self.model_type == "rnn" else batch_entry[0]
+                frame_list = [cv2.imread(file) for file in frame_file_list]
+                assert((len(frame_list) == 1) if self.model_type == "rnn" else (len(frame_list) == 4))
+                frames = preprocessImages(frame_list[0], self.avg) if self.model_type == "rnn" else \
+                    preprocessImages(np.array(frame_list), self.avg).transpose(1, 2, 0, 3).reshape(210, 160, 12)
 
-            actions = item[1]
-            assert(len(actions) == 5)
+                actions = batch_entry[1]
+                assert(len(actions) == 5)
 
-            next_frame_file_list = item[2]
-            next_frame_list = [cv2.imread(file) for file in next_frame_file_list]
-            assert(len(next_frame_list) == 5)
-            next_frames = np.array(next_frame_list).transpose(1, 2, 0, 3).reshape(210, 160, 15)
+                next_frame_file_list = batch_entry[2]
+                next_frame_list = [cv2.imread(file) for file in next_frame_file_list]
+                assert(len(next_frame_list) == 5)
+                next_frames = np.array(next_frame_list).transpose(1, 2, 0, 3).reshape(210, 160, 15)
+                
+                # 4 frames, combined across channels, 5 actions, and 5 frames (combined across channels) yielded
+                # from taking those actions
+                data_list.append((frames, actions, next_frames))
 
-            # Returns 4 frames, combined across channels, 5 actions, and 5 frames (combined across channels) yielded
-            # from taking those actions
-            return (frames, actions, next_frames)
+            return data_list
 
         idxs = np.arange(self.size())
         if self.shuffle:
