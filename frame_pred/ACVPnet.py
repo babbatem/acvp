@@ -197,7 +197,7 @@ def calcAvgPixel(head_directory):
         if enough:
             break
 
-    avg_pixels = pixel_sums / float(num_pixels*160*210)
+    avg_pixels = pixel_sums / float(num_images*160*210)
     return avg_pixels
 
 def fileNum2FileName(num):
