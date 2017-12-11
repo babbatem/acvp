@@ -28,10 +28,12 @@ def show_img(img, s):
     cv2.waitKey(s*1000)
 
 class ACVPModel(ModelDesc):
-    def __init__(self, network_type, avg):
+    def __init__(self, network_type, avg, learning_rate, k):
         super(ACVPModel, self).__init__()
         self.network_type = network_type
         self.avg = avg
+        self.learning_rate = learning_rate
+        self.k = k
 
     def _get_inputs(self):
         # Images are either concatenated (12 channels in cnn/naff, 3 in rnn)
@@ -82,11 +84,11 @@ class ACVPModel(ModelDesc):
             .Conv2D('conv1', out_channel=128, kernel_shape=6)
             .Conv2D('conv2', out_channel=128, kernel_shape=6)
             .Conv2D('conv3', out_channel=128, kernel_shape=4)
-            .FullyConnected('fc0', 2048, nl=tf.nn.relu)
-            # TODO(Aaron): add an LSTM node here
+            .FullyConnected('fc0', 2048, nl=tf.nn.relu)())
             # When the recurrent encoding network is trained on 1-step prediction objective, the network is unrolled
             # through 20 steps and predicts the last 10 frames by taking ground-truth images as input
-            .FullyConnected('fc1', 2048, nl=tf.identity)())
+        l = 
+        l = FullyConnected('fc1', l, 2048, nl=tf.identity)
         l = tf.tensordot(l, FullyConnected('fca', tf.one_hot(action, NUM_ACTIONS), 2048, nl=tf.identity))
         l = (LinearWrap(l)
             .FullyConnected('fc3', 2048, nl=tf.identity)
@@ -98,13 +100,14 @@ class ACVPModel(ModelDesc):
         return l
 
     def _build_graph(self, inputs):
-        k = tf.get_variable('steps', initializer=1, trainable=False)
+        #k = tf.get_variable('steps', initializer=1, trainable=False)
+        
         losses = []
         with argscope([Conv2D, Deconv2D], nl=tf.nn.relu, use_bias=True, stride=2):
             image, label, action = inputs
             with tf.variable_scope('A'):
                 last_img = image
-                for step in range(k):
+                for step in range(self.k):
                     nextf = next_frame_cnn(last_img, action[:, step]) if self.network_type == "cnn" \
                         else (next_frame_naff(last_img) if self.network_type == "naff" \
                         else next_frame_rnn(last_img, action[:, step]))
@@ -124,13 +127,12 @@ class ACVPModel(ModelDesc):
         return loss
 
     def _get_optimizer(self):
-        learning_rate = tf.get_variable('learning_rate', initializer=1e-4, trainable=False)
+        learning_rate = tf.get_variable('learning_rate', initializer=self.learning_rate, trainable=False)
         step = get_global_step_var() # get_global_step()
         learning_rate = tf.cond(step % 10000, lambda: learning_rate.assign(learning_rate * .9), lambda: learning_rate)
         return tf.train.RMSPropOptimizer(learning_rate, decay=0.95, momentum=tf.Constant(0.9), epsilon=0.01)
 
 class AtariReplayDataflow(RNGDataFlow):
-    # TODO(Aaron): if model_type=="cnn" or "naff", batch size is reduced to 8 in epochs 4-7.
     def __init__(self, items, averages, model_type, shuffle=True, batch_size=32):
         def chunk(n, lst):
             n = min(n, len(lst)-1)
