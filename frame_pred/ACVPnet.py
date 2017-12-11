@@ -243,7 +243,7 @@ def readFilenamesAndActions(head_directory):
                 frames_actions_nextframes.append(([os.path.abspath(directory + '/' + f) for f in frames], actions, \
                     [os.path.abspath(directory + '/' + f) for f in next_frames]))
                 img_tot += 1
-                if img_tot % 10000:
+                if img_tot % 10000 == 0:
                     print "Read in filenames and actions for", img_tot, "training examples"
                 if img_tot >= 500000:
                     enough_data = True
