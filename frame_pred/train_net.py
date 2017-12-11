@@ -43,6 +43,7 @@ def main():
     learning_rate = 1e-4 if args.phase == "1" else 1e-5
     num_epochs = 3 if args.phase == "1" else 2
     steps = 1 if args.phase == "1" else (3 if args.phase == "2" else 5)
+    in_channel_size = 3 if args.network == "rnn" else 12
 
     items = readFilenamesAndActions(args.episode_dir)
     avgs = calcAvgPixel(args.episode_dir) if args.avg_pixel_file == "" else \
@@ -62,7 +63,7 @@ def main():
     TestDataSpeed(dataflow).start()
     '''
     config = TrainConfig(
-        model=ACVPModel(args.network, avgs, learning_rate, steps),
+        model=ACVPModel(args.network, avgs, learning_rate, steps, in_channel_size),
         dataflow=dataflow,
         callbacks=[ModelSaver()],
         max_epoch=num_epochs,

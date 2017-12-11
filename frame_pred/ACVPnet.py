@@ -28,16 +28,17 @@ def show_img(img, s):
     cv2.waitKey(s*1000)
 
 class ACVPModel(ModelDesc):
-    def __init__(self, network_type, avg, learning_rate, k):
+    def __init__(self, network_type, avg, learning_rate, k, in_channel_size):
         super(ACVPModel, self).__init__()
         self.network_type = network_type
         self.avg = avg
         self.learning_rate = learning_rate
         self.k = k
+        self.in_channel_size = in_channel_size
 
     def _get_inputs(self):
         # Images are either concatenated (12 channels in cnn/naff, 3 in rnn)
-        return [InputDesc(tf.float32, (None, 210, 160, 12), 'input'),
+        return [InputDesc(tf.float32, (None, 210, 160, self.in_channel_size), 'input'),
                 # Give the next 5 images and actions that yield them as labels/actions in all phases
                 InputDesc(tf.float32, (None, 210, 160, 15), 'label'),
                 InputDesc(tf.int32, (None, 5), 'action')]
