@@ -2,7 +2,7 @@
 
 import tensorflow as tf
 from tensorpack import *
-from tensorpack.dataflow.base import RNGDataflow
+from tensorpack.dataflow.base import RNGDataFlow
 from tensorpack.tfutils.summary import add_moving_summary
 from tensorpack.tfutils import get_global_step_var
 from tensorpack.tfutils.scope_utils import auto_reuse_variable_scope
