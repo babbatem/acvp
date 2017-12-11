@@ -48,7 +48,7 @@ def main():
         dataflow=dataflow,
         callbacks=[
             ModelSaver(),
-            ScheduledHyperParamSetter('learning_rate', [(0, 1e-4), (3, 1e-5), (5, 1e-5)])
+            ScheduledHyperParamSetter('learning_rate', [(0, 1e-4), (3, 1e-5), (5, 1e-5)]),
             ScheduledHyperParamSetter('steps', [(0, 1), (3, 3), (5, 5)])
         ],
         max_epoch=7,
