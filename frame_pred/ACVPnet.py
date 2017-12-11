@@ -108,9 +108,9 @@ class ACVPModel(ModelDesc):
             with tf.variable_scope('A'):
                 last_img = image
                 for step in range(self.k):
-                    nextf = next_frame_cnn(last_img, action[:, step]) if self.network_type == "cnn" \
-                        else (next_frame_naff(last_img) if self.network_type == "naff" \
-                        else next_frame_rnn(last_img, action[:, step]))
+                    nextf = self.next_frame_cnn(last_img, action[:, step]) if self.network_type == "cnn" \
+                        else (self.next_frame_naff(last_img) if self.network_type == "naff" \
+                        else self.next_frame_rnn(last_img, action[:, step]))
                     losses.append(tf.squared_difference(nextf, label[:, :, :, 3*step:3*step+3]))
                     # Combine the next 3 frames (which could be a combination of real and predicted)
                     # with the predicted image
