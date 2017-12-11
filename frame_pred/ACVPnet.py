@@ -179,16 +179,25 @@ def preprocessImages(images, avgs):
 def calcAvgPixel(head_directory):
     # Given list filenames, calculate average pixel values for each of the 3 channels
     pixel_sums = np.zeros((3))
-    num_pixels = 0
+    num_images = 0
     for directory, subdirs, files in os.walk(head_directory):
         if "actions.txt" not in files:
             continue
         files.remove("actions.txt")
+        enough = False
         for file in files:
             image = cv2.imread(directory + '/' + file)
             pixel_sums += image.sum(axis=(0, 1))
-            num_pixels += image.shape[0] * image.shape[1] * image.shape[2]
-    avg_pixels = pixel_sums / float(num_pixels)
+            num_images += 1
+            if num_images % 10000 == 0:
+                print "Calculated average pixel values for", num_images, "images"
+            if num_images >= 500000:
+                enough = True
+                break
+        if enough:
+            break
+
+    avg_pixels = pixel_sums / float(num_pixels*160*210)
     return avg_pixels
 
 def fileNum2FileName(num):
@@ -214,6 +223,7 @@ def readFilenamesAndActions(head_directory):
             print "Skipping episode", directory, "because it doesn't contain enough data."
             continue
         skip_ep = False
+        enough_data = False
         for i in range(len(action_tuples)):
             if i > 2 and i < len(action_tuples) - 5:
                 frames = [fileNum2FileName(action_tuples[i-3][1]), fileNum2FileName(action_tuples[i-2][1]), \
@@ -233,7 +243,14 @@ def readFilenamesAndActions(head_directory):
                 frames_actions_nextframes.append(([os.path.abspath(directory + '/' + f) for f in frames], actions, \
                     [os.path.abspath(directory + '/' + f) for f in next_frames]))
                 img_tot += 1
+                if img_tot % 10000:
+                    print "Read in filenames and actions for", img_tot, "training examples"
+                if img_tot >= 500000:
+                    enough_data = True
+                    break
         if skip_ep:
             continue
+        if enough_data:
+            break
     print "Read in a total of", img_tot, "training examples."
     return frames_actions_nextframes

@@ -17,11 +17,13 @@ from tensorpack.utils.gpu import get_nr_gpu
 
 from ACVPnet import *
 
-
 def main():
     parser = argparse.ArgumentParser(description="Train the ACVP image generation network.")
-    parser.add_argument("--episode_dir", type=str, default="/home/matt/acvp/frame_pred/fake_data", \
+    parser.add_argument("--episode_dir", type=str, default="/data/people/mcorsaro/acvp_03epsil/", \
         help="Directory containing episode subdirectories. NOTE: It must be the absolute path.")
+    parser.add_argument("--avg_pixel_file", type=str, default="", \
+        help="Directory containing average pixel file for a given dataset." + \
+        " If unspecified, a new file will be created. NOTE: It must be the absolute path.")
     parser.add_argument("--network", choices=["cnn", "rnn", "naff"], default="cnn",
         help="types of models are cnn, rnn, and naff")
 
@@ -32,9 +34,13 @@ def main():
     batch_size_cnn_naff = 32
     batch_size_rnn = 4
 
-    avgs = calcAvgPixel(args.episode_dir)
-    print "Average pixel values:", avgs, "TODO(MATT): Save these in a file, load at runtime"
     items = readFilenamesAndActions(args.episode_dir)
+    avgs = calcAvgPixel(args.episode_dir) if args.avg_pixel_file == "" else \
+        np.loadtxt(args.avg_pixel_file)
+    if args.avg_pixel_file == "":
+        # Save locally
+        np.savetxt(timestamp() + "_avg_pixels.txt", avgs)
+    print "Average pixel values:", avgs
 
     dataflow = AtariReplayDataflow(items, args.network, avgs, shuffle=True, \
         batch_size=(batch_size_rnn if args.network == "rnn" else batch_size_cnn_naff))
