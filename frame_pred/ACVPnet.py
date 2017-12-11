@@ -117,9 +117,11 @@ class ACVPModel(ModelDesc):
                     last_img = tf.concat(last_img[:, :, :, 3:], nextf, axis=3) if self.network_type == "cnn" or \
                         self.network_type == "naff" else nextf
 
+        '''
         viz = 255*l + self.avg
         viz = tf.cast(tf.clip_by_value(viz, 0, 255), tf.uint8, name='viz')
         tf.summary.image('vizsum', viz, max_outputs=30)
+        '''
 
         loss = tf.add_n(losses, name='total_loss')
         loss /= (2*k)
@@ -251,7 +253,7 @@ def readFilenamesAndActions(head_directory):
                 img_tot += 1
                 if img_tot % 10000 == 0:
                     print "Read in filenames and actions for", img_tot, "training examples"
-                if img_tot >= 10000:
+                if img_tot >= 1000:
                     enough_data = True
                     break
         if skip_ep:
