@@ -52,7 +52,7 @@ class ACVPModel(ModelDesc):
             .Conv2D('conv3', out_channel=128, kernel_shape=4)
             .FullyConnected('fc0', 2048, nl=tf.nn.relu)
             .FullyConnected('fc1', 2048, nl=tf.identity)())
-        l = tf.tensordot(l, FullyConnected('fca', tf.one_hot(action, NUM_ACTIONS), 2048, nl=tf.identity), [[1], [1]])
+        l = tf.tensordot(l, FullyConnected('fca', tf.one_hot(action, NUM_ACTIONS), 2048, nl=tf.identity), [[1], [0]])
         l = (LinearWrap(l)
             .FullyConnected('fc3', 2048, nl=tf.identity)
             .FullyConnected('fc4', 2048, nl=tf.nn.relu)
