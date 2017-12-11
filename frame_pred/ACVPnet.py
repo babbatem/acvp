@@ -153,7 +153,7 @@ class AtariReplayDataflow(RNGDataFlow):
                 # If rnn, just use the most recent frame as input
                 frame_file_list = batch_entry[0][-1:] if self.model_type == "rnn" else batch_entry[0]
                 frame_list = [cv2.imread(file) for file in frame_file_list]
-		assert((len(frame_list) == 1) if self.model_type == "rnn" else (len(frame_list) == 4))
+                assert((len(frame_list) == 1) if self.model_type == "rnn" else (len(frame_list) == 4))
                 frames = preprocessImages(frame_list[0], self.avg) if self.model_type == "rnn" else \
                     preprocessImages(np.array(frame_list), self.avg).transpose(1, 2, 0, 3).reshape(210, 160, 12)
 
