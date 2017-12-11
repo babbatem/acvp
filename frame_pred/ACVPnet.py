@@ -37,7 +37,7 @@ class ACVPModel(ModelDesc):
 
     def _get_inputs(self):
         # Images are either concatenated (12 channels in cnn/naff, 3 in rnn)
-        return [InputDesc(tf.float32, (None, 210, 160, None), 'input'),
+        return [InputDesc(tf.float32, (None, 210, 160, 12), 'input'),
                 # Give the next 5 images and actions that yield them as labels/actions in all phases
                 InputDesc(tf.float32, (None, 210, 160, 15), 'label'),
                 InputDesc(tf.int32, (None, 5), 'action')]
