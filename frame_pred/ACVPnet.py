@@ -136,15 +136,17 @@ class ACVPModel(ModelDesc):
         '''
 
         loss = tf.add_n(losses, name='total_loss')
-        loss /= (2*k)
-        add_moving_summary(loss)
-        return loss
+        loss /= (2*self.k)
+	#add_moving_summary(loss)
+        self.cost = loss
+	return loss
 
     def _get_optimizer(self):
         learning_rate = tf.get_variable('learning_rate', initializer=self.learning_rate, trainable=False)
         step = get_global_step_var() # get_global_step()
-        learning_rate = tf.cond(step % 10000, lambda: learning_rate.assign(learning_rate * .9), lambda: learning_rate)
-        return tf.train.RMSPropOptimizer(learning_rate, decay=0.95, momentum=tf.Constant(0.9), epsilon=0.01)
+	print type(step)
+        learning_rate = tf.cond(tf.equal(step+1 % 10000, 0), lambda: learning_rate.assign(learning_rate * .9), lambda: learning_rate)
+        return tf.train.RMSPropOptimizer(learning_rate, decay=0.95, momentum=tf.constant(0.9), epsilon=0.01)
 
 class AtariReplayDataflow(RNGDataFlow):
     def __init__(self, items, averages, model_type, shuffle=True, batch_size=32):
@@ -181,7 +183,7 @@ class AtariReplayDataflow(RNGDataFlow):
                 
                 # 4 frames, combined across channels, 5 actions, and 5 frames (combined across channels) yielded
                 # from taking those actions
-                data_list.append((frames, actions, next_frames))
+                data_list.append([frames, actions, next_frames])
 
             return data_list
 
