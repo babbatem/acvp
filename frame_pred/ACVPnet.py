@@ -191,7 +191,7 @@ class AtariReplayDataflow(RNGDataFlow):
         if self.shuffle:
             self.rng.shuffle(idxs)
         for idx in idxs:
-            yield read_item(self.items[idx])
+            yield PrintData(read_item(self.items[idx]), num=2)
 
 # Given np array of images and np vector of length 3 containing average pixel values
 def preprocessImages(images, avgs):
