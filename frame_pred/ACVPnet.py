@@ -40,7 +40,8 @@ class ACVPModel(ModelDesc):
         # Images are either concatenated (12 channels in cnn/naff, 3 in rnn)
         return [InputDesc(tf.float32, (None, 210, 160, self.in_channel_size), 'input'),
                 # Give the next 5 images and actions that yield them as labels/actions in all phases
-                InputDesc(tf.float32, (None, 208, 160, 15), 'label'),
+                # TODO(MATT): Change things so we read in only what we need for a phase
+                InputDesc(tf.float32, (None, 210, 160, 15), 'label'),
                 InputDesc(tf.int32, (None, 5), 'action')]
 
     @auto_reuse_variable_scope
@@ -55,8 +56,8 @@ class ACVPModel(ModelDesc):
             .FullyConnected('fc1', 2048, nl=tf.identity)())
         encoder_and_actions = tf.tensordot(h, FullyConnected('fca', tf.one_hot(action, NUM_ACTIONS), \
             2048, nl=tf.identity), [[1], [0]])
-        dec_in_w = int(encoder_out.shape[1])
-        dec_in_h = int(encoder_out.shape[2])
+        dec_in_w = int(encoder_out.shape[1])+1
+        dec_in_h = int(encoder_out.shape[2])+1
         print "Decoder input sizes", dec_in_w, dec_in_h
         decoder_in = (LinearWrap(encoder_and_actions)
             .FullyConnected('fc3', 2048, nl=tf.identity)
@@ -173,9 +174,9 @@ class AtariReplayDataflow(RNGDataFlow):
                 assert(len(actions) == 5)
 
                 next_frame_file_list = batch_entry[2]
-                next_frame_list = [cv2.resize((cv2.imread(file)), (160, 208)) for file in next_frame_file_list]
+                next_frame_list = [cv2.imread(file) for file in next_frame_file_list]
                 assert(len(next_frame_list) == 5)
-                next_frames = np.array(next_frame_list).transpose(1, 2, 0, 3).reshape(208, 160, 15)
+                next_frames = np.array(next_frame_list).transpose(1, 2, 0, 3).reshape(210, 160, 15)
                 
                 # 4 frames, combined across channels, 5 actions, and 5 frames (combined across channels) yielded
                 # from taking those actions
