@@ -73,19 +73,25 @@ class ACVPModel(ModelDesc):
 
     @auto_reuse_variable_scope
     def next_frame_naff(self, image):
-        l = (LinearWrap(image)
-            .Conv2D('conv0', out_channel=64, kernel_shape=8)
-            .Conv2D('conv1', out_channel=128, kernel_shape=6)
-            .Conv2D('conv2', out_channel=128, kernel_shape=6)
-            .Conv2D('conv3', out_channel=128, kernel_shape=4)
+        encoder_out = (LinearWrap(image)
+            .Conv2D('conv0', out_channel=64, kernel_shape=8, stride=2)
+            .Conv2D('conv1', out_channel=128, kernel_shape=6, stride=2)
+            .Conv2D('conv2', out_channel=128, kernel_shape=6, stride=2)
+            .Conv2D('conv3', out_channel=128, kernel_shape=4, stride=2, padding="VALID")())
+        dec_in_w = int(encoder_out.shape[1])+1
+        dec_in_h = int(encoder_out.shape[2])
+        h = (LinearWrap(encoder_out)
             .FullyConnected('fc0', 2048, nl=tf.nn.relu)
-            .FullyConnected('fc1', 2048, nl=tf.nn.relu)
-            .FullyConnected('fc1', 2048, nl=tf.nn.relu)
-            .Deconv2D('deconv1', 128, 4)
-            .Deconv2D('deconv2', 128, 6)
-            .Deconv2D('deconv3', 128, 6)
-            .Deconv2D('deconv4', 3, 8, nl=tf.identity)())
-        return l
+            .FullyConnected('fc1', 2048, nl=tf.relu)
+            .FullyConnected('fc2', dec_in_w * dec_in_h * int(encoder_out.shape[3]), nl=tf.relu)())
+        print "Decoder input sizes", dec_in_w, dec_in_h
+        decoder_in_4d = tf.reshape(h, [-1, dec_in_w, dec_in_h, int(encoder_out.shape[3])])
+        decoder_out = (LinearWrap(decoder_in_4d)
+            .Deconv2D('deconv1', 128, 4, stride=2, padding="VALID")
+            .Deconv2D('deconv2', 128, 6, stride=2)
+            .Deconv2D('deconv3', 128, 6, stride=2)
+            .Deconv2D('deconv4', 3, 8, stride=2, nl=tf.identity)())
+        return decoder_out
 
     @auto_reuse_variable_scope
     def next_frame_rnn(self, image, action):
