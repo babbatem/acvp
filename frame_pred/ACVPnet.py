@@ -57,9 +57,11 @@ class ACVPModel(ModelDesc):
             2048, nl=tf.identity), [[1], [0]])
         decoder_in = (LinearWrap(encoder_and_actions)
             .FullyConnected('fc3', 2048, nl=tf.identity)
-            .FullyConnected('fc4', 2048, nl=tf.nn.relu)())
-        print int(encoder_out.shape[1]), int(encoder_out.shape[2]), int(encoder_out.shape[3])
-        decoder_out = (LinearWrap(decoder_in)
+            .FullyConnected('fc4', int(encoder_out.shape[1]) * int(encoder_out.shape[2]) * int(encoder_out.shape[3]),
+                nl=tf.nn.relu)())
+        decoder_in_4d = tf.reshape(decoder_in, \
+            [-1, int(encoder_out.shape[1]), int(encoder_out.shape[2]), int(encoder_out.shape[3])])
+        decoder_out = (LinearWrap(decoder_in_4d)
             .Deconv2D('deconv1', 128, 4, stride=2, padding="VALID")
             .Deconv2D('deconv2', 128, 6, stride=2)
             .Deconv2D('deconv3', 128, 6, stride=2)
