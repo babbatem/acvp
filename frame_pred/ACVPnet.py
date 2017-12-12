@@ -124,7 +124,7 @@ class ACVPModel(ModelDesc):
                     losses.append(tf.squared_difference(nextf, label[:, :, :, 3*step:3*step+3]))
                     # Combine the next 3 frames (which could be a combination of real and predicted)
                     # with the predicted image
-                    last_img = tf.concat(last_img[:, :, :, 3:], nextf, axis=3) if self.network_type == "cnn" or \
+                    last_img = tf.concat([last_img[:, :, :, 3:], nextf], 3) if self.network_type == "cnn" or \
                         self.network_type == "naff" else nextf
 
         '''
