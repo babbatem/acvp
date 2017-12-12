@@ -22,15 +22,14 @@ from ACVPnet import *
 class OurJSONWriter(JSONWriter):
 
     def _trigger_step(self):
-	print("TRIGGERD")
-	loss = self.get_tensors_maybe_in_tower(['complete_loss:0'])[0]#	tf.get_default_graph().get_tensor_by_name('complete_loss:0')
+        print("TRIGGERD")
+        loss = self.get_tensors_maybe_in_tower(['complete_loss:0'])[0]# tf.get_default_graph().get_tensor_by_name('complete_loss:0')
         print(loss)
-	# will do this in trigger_epoch
-	self.trainer.monitors.put_summary(loss)
-	self._push()
-	#if self.local_step % 2 == 0:
-	#    self._push()
-
+        # will do this in trigger_epoch
+        self.trainer.monitors.put_summary(loss)
+        self._push()
+        #if self.local_step % 2 == 0:
+        #    self._push()
 
 def main():
     parser = argparse.ArgumentParser(description="Train the ACVP image generation network.")
@@ -80,10 +79,10 @@ def main():
     config = TrainConfig(
         model=ACVPModel(args.network, avgs, learning_rate, steps, in_channel_size),
         dataflow=dataflow,
-	callbacks=[ModelSaver(), TensorPrinter(['tower0/complete:0'])],
-	#monitors=[TFEventWriter(), OurJSONWriter(), ScalarPrinter()],
-	#steps_per_epoch=10000,
-	max_epoch=num_epochs,
+        callbacks=[ModelSaver(), TensorPrinter(['tower0/complete:0'])],
+        #monitors=[TFEventWriter(), OurJSONWriter(), ScalarPrinter()],
+        #steps_per_epoch=10000,
+        max_epoch=num_epochs,
         session_init=SaverRestore(args.load) if args.load else None 
     )
     launch_train_with_config(config, SyncMultiGPUTrainerParameterServer(nr_gpu))
