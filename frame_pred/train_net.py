@@ -13,10 +13,21 @@ import time
 
 from tensorpack import *
 from tensorpack.dataflow import *
-
+from tensorpack.callbacks import *
 from tensorpack.utils.gpu import get_nr_gpu
 
 from ACVPnet import *
+
+class OurJSONWriter(JSONWriter):
+
+    def __new__(cls):
+        return super(OurJSONWriter, cls).__new__(cls)
+    
+    def _trigger_step(self):
+        # will do this in trigger_epoch
+        if self.local_step % 500 == 0:
+            self._push()
+
 
 def main():
     parser = argparse.ArgumentParser(description="Train the ACVP image generation network.")
@@ -56,6 +67,7 @@ def main():
     dataflow = AtariReplayDataflow(items, avgs, args.network, steps, shuffle=True, \
         batch_size=(batch_size_rnn if args.network == "rnn" else batch_size_cnn_naff))
     dataflow = PrefetchDataZMQ(dataflow, 4)
+    dataflow = PrintData(dataflow)
     # TODO(Ben/Matt), when running:
     #Set TENSORPACK_PIPE_DIR=/ltmp/
     '''
@@ -66,6 +78,7 @@ def main():
         model=ACVPModel(args.network, avgs, learning_rate, steps, in_channel_size),
         dataflow=dataflow,
         callbacks=[ModelSaver()],
+        monitors=[TFEventWriter(), OurJSONWriter(), ScalarPrinter()],
         max_epoch=num_epochs,
         session_init=SaverRestore(args.load) if args.load else None 
     )
