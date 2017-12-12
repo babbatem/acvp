@@ -10,7 +10,7 @@ from tensorpack.tfutils.scope_utils import auto_reuse_variable_scope
 
 import numpy as np
 import cv2
-
+import pprint
 import sys
 import os
 
@@ -40,8 +40,8 @@ class ACVPModel(ModelDesc):
         # Images are either concatenated (12 channels in cnn/naff, 3 in rnn)
         return [InputDesc(tf.float32, (None, 210, 160, self.in_channel_size), 'input'),
                 # Give the next k images and actions that yield them as labels/actions in all phases
-                InputDesc(tf.float32, (None, 210, 160, 3*self.k), 'label'),
-                InputDesc(tf.int32, (None, self.k), 'action')]
+                InputDesc(tf.int32, (None, self.k), 'action'),
+                InputDesc(tf.float32, (None, 210, 160, 3*self.k), 'label')]
 
     @auto_reuse_variable_scope
     def next_frame_cnn(self, image, action):
@@ -53,8 +53,8 @@ class ACVPModel(ModelDesc):
         h = (LinearWrap(encoder_out)
             .FullyConnected('fc0', 2048, nl=tf.nn.relu)
             .FullyConnected('fc1', 2048, nl=tf.identity)())
-        encoder_and_actions = tf.tensordot(h, FullyConnected('fca', tf.one_hot(action, NUM_ACTIONS), \
-            2048, nl=tf.identity), [[1], [0]])
+        encoder_and_actions = tf.multiply(h, FullyConnected('fca', tf.one_hot(action, NUM_ACTIONS), \
+            2048, nl=tf.identity))
         dec_in_w = int(encoder_out.shape[1])+1
         dec_in_h = int(encoder_out.shape[2])
         print "Decoder input sizes", dec_in_w, dec_in_h
@@ -114,7 +114,7 @@ class ACVPModel(ModelDesc):
         
         losses = []
         with argscope([Conv2D, Deconv2D], nl=tf.nn.relu, use_bias=True, stride=2):
-            image, label, action = inputs
+            image, action, label = inputs
             with tf.variable_scope('A'):
                 last_img = image
                 for step in range(self.k):
@@ -122,21 +122,33 @@ class ACVPModel(ModelDesc):
                         else (self.next_frame_naff(last_img) if self.network_type == "naff" \
                         else self.next_frame_rnn(last_img, action[:, step]))
                     nextf = nextf[:, :210, :, :]
-                    losses.append(tf.squared_difference(nextf, label[:, :, :, 3*step:3*step+3]))
+                    losses.append(tf.reduce_sum(tf.squared_difference(nextf, label[:, :, :, 3*step:3*step+3])))
                     # Combine the next 3 frames (which could be a combination of real and predicted)
                     # with the predicted image
                     last_img = tf.concat([last_img[:, :, :, 3:], nextf], 3) if self.network_type == "cnn" or \
                         self.network_type == "naff" else nextf
 
-        '''
-        viz = 255*l + self.avg
-        viz = tf.cast(tf.clip_by_value(viz, 0, 255), tf.uint8, name='viz')
-        tf.summary.image('vizsum', viz, max_outputs=30)
-        '''
+	def viz_all(last_image, next_img):
+            img1 = last_image * 255 + np.reshape(np.concatenate([self.avg]*4, 0), (1, 1, 1, 12))
+            last_images = tf.split(img1, [3, 3, 3, 3], 3)
+	    img2 = next_img * 255 + np.reshape(self.avg, (1, 1, 1, 3))
+            viz = tf.concat(last_images + [img2], axis=2)
+            viz = tf.cast(tf.clip_by_value(viz, 0, 255), tf.uint8, name='vizall')
+            tf.summary.image('vizallsum', viz, max_outputs=30)
 
+	def viz_simple(image, name):
+            viz = 255*image + np.reshape(self.avg, (1, 1, 1, 3))
+            viz = tf.cast(tf.clip_by_value(viz, 0, 255), tf.uint8, name=name)
+            tf.summary.image(name+'sum', viz, max_outputs=30)
+        
+	viz_all(last_img, nextf)
+	viz_simple(nextf, 'viz')
+ 
         loss = tf.add_n(losses, name='total_loss')
         loss /= (2*self.k)
-	#add_moving_summary(loss)
+	loss = tf.identity(loss, name='complete')
+	#tf.summary.scalar('complete_loss', tf.identity(loss, name='complete'))
+	add_moving_summary(loss)
         self.cost = loss
 	return loss
 
@@ -158,6 +170,40 @@ class AtariReplayDataflow(RNGDataFlow):
         self.avg = averages
         self.k = k
 
+    def _aggregate_batch(self, data_holder, use_list=False):
+        size = len(data_holder[0])
+        result = []
+        for k in range(size):
+            if use_list:
+                result.append(
+                    [x[k] for x in data_holder])
+            else:
+                dt = data_holder[0][k]
+                if type(dt) in [int, bool]:
+                    tp = 'int32'
+                elif type(dt) == float:
+                    tp = 'float32'
+                else:
+                    try:
+                        tp = dt.dtype
+                    except AttributeError:
+                        raise TypeError("Unsupported type to batch: {}".format(type(dt)))
+                try:
+                    result.append(
+                        np.asarray([x[k] for x in data_holder], dtype=tp))
+                except Exception as e:  # noqa
+                    logger.exception("Cannot batch data. Perhaps they are of inconsistent shape?")
+                    if isinstance(dt, np.ndarray):
+                        s = pprint.pformat([x[k].shape for x in data_holder])
+                        logger.error("Shape of all arrays to be batched: " + s)
+                    try:
+                        # open an ipython shell if possible
+                        import IPython as IP; IP.embed()    # noqa
+                    except ImportError:
+                        pass
+        return result
+
+
     def size(self):
         # Return size of dataset
         return len(self.items)
@@ -173,7 +219,7 @@ class AtariReplayDataflow(RNGDataFlow):
                 frames = preprocessImages(frame_list[0], self.avg) if self.model_type == "rnn" else \
                     preprocessImages(np.array(frame_list), self.avg).transpose(1, 2, 0, 3).reshape(210, 160, 12)
 
-                actions = batch_entry[1]
+                actions = np.array(batch_entry[1], np.uint8)
                 assert(len(actions) == self.k)
 
                 next_frame_file_list = batch_entry[2]
@@ -191,7 +237,7 @@ class AtariReplayDataflow(RNGDataFlow):
         if self.shuffle:
             self.rng.shuffle(idxs)
         for idx in idxs:
-            yield read_item(self.items[idx])
+            yield self._aggregate_batch(read_item(self.items[idx]))
 
 # Given np array of images and np vector of length 3 containing average pixel values
 def preprocessImages(images, avgs):
@@ -268,7 +314,7 @@ def readFilenamesAndActions(head_directory, num_next_frames):
                 img_tot += 1
                 if img_tot % 10000 == 0:
                     print "Read in filenames and actions for", img_tot, "training examples"
-                if img_tot >= 1000:
+                if img_tot >= 500000:
                     enough_data = True
                     break
         if skip_ep:

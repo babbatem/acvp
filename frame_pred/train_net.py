@@ -6,7 +6,7 @@ import cv2
 
 import sys
 import os
-
+import pprint
 import argparse
 import time
 
@@ -20,13 +20,15 @@ from ACVPnet import *
 
 class OurJSONWriter(JSONWriter):
 
-    def __new__(cls):
-        return super(OurJSONWriter, cls).__new__(cls)
-    
     def _trigger_step(self):
-        # will do this in trigger_epoch
-        if self.local_step % 500 == 0:
-            self._push()
+	print("TRIGGERD")
+	loss = self.get_tensors_maybe_in_tower(['complete_loss:0'])[0]#	tf.get_default_graph().get_tensor_by_name('complete_loss:0')
+        print(loss)
+	# will do this in trigger_epoch
+	self.trainer.monitors.put_summary(loss)
+	self._push()
+	#if self.local_step % 2 == 0:
+	#    self._push()
 
 
 def main():
@@ -77,9 +79,10 @@ def main():
     config = TrainConfig(
         model=ACVPModel(args.network, avgs, learning_rate, steps, in_channel_size),
         dataflow=dataflow,
-        callbacks=[ModelSaver()],
-        monitors=[TFEventWriter(), OurJSONWriter(), ScalarPrinter()],
-        max_epoch=num_epochs,
+	callbacks=[ModelSaver(), TensorPrinter(['tower0/complete:0'])],
+	#monitors=[TFEventWriter(), OurJSONWriter(), ScalarPrinter()],
+	#steps_per_epoch=10000,
+	max_epoch=num_epochs,
         session_init=SaverRestore(args.load) if args.load else None 
     )
     launch_train_with_config(config, SyncMultiGPUTrainerParameterServer(nr_gpu))
