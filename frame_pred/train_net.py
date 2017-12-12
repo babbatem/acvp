@@ -71,8 +71,5 @@ def main():
     )
     launch_train_with_config(config, SyncMultiGPUTrainerParameterServer(nr_gpu))
 
-
-
-
 if __name__ == '__main__':
     main()
