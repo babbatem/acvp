@@ -45,7 +45,7 @@ def main():
     steps = 1 if args.phase == "1" else (3 if args.phase == "2" else 5)
     in_channel_size = 3 if args.network == "rnn" else 12
 
-    items = readFilenamesAndActions(args.episode_dir)
+    items = readFilenamesAndActions(args.episode_dir, steps)
     avgs = calcAvgPixel(args.episode_dir) if args.avg_pixel_file == "" else \
         np.loadtxt(args.avg_pixel_file)
     if args.avg_pixel_file == "":
@@ -53,7 +53,7 @@ def main():
         np.savetxt(timestamp() + "_avg_pixels.txt", avgs)
     print "Average pixel values:", avgs
 
-    dataflow = AtariReplayDataflow(items, avgs, args.network, shuffle=True, \
+    dataflow = AtariReplayDataflow(items, avgs, args.network, steps, shuffle=True, \
         batch_size=(batch_size_rnn if args.network == "rnn" else batch_size_cnn_naff))
     dataflow = PrefetchDataZMQ(dataflow, 4)
     # TODO(Ben/Matt), when running:

@@ -40,8 +40,7 @@ class ACVPModel(ModelDesc):
         # Images are either concatenated (12 channels in cnn/naff, 3 in rnn)
         return [InputDesc(tf.float32, (None, 210, 160, self.in_channel_size), 'input'),
                 # Give the next 5 images and actions that yield them as labels/actions in all phases
-                # TODO(MATT): Change things so we read in only what we need for a phase
-                InputDesc(tf.float32, (None, 210, 160, 15), 'label'),
+                InputDesc(tf.float32, (None, 210, 160, 3*self.k), 'label'),
                 InputDesc(tf.int32, (None, 5), 'action')]
 
     @auto_reuse_variable_scope
@@ -149,7 +148,7 @@ class ACVPModel(ModelDesc):
         return tf.train.RMSPropOptimizer(learning_rate, decay=0.95, momentum=tf.constant(0.9), epsilon=0.01)
 
 class AtariReplayDataflow(RNGDataFlow):
-    def __init__(self, items, averages, model_type, shuffle=True, batch_size=32):
+    def __init__(self, items, averages, model_type, k, shuffle=True, batch_size=32):
         def chunk(n, lst):
             n = min(n, len(lst)-1)
             return [lst[i:i+n] for i in range(len(lst) - n+1)]
@@ -157,6 +156,7 @@ class AtariReplayDataflow(RNGDataFlow):
         self.items = chunk(batch_size, items)
         self.model_type = model_type
         self.avg = averages
+        self.k = k
 
     def size(self):
         # Return size of dataset
@@ -174,14 +174,14 @@ class AtariReplayDataflow(RNGDataFlow):
                     preprocessImages(np.array(frame_list), self.avg).transpose(1, 2, 0, 3).reshape(210, 160, 12)
 
                 actions = batch_entry[1]
-                assert(len(actions) == 5)
+                assert(len(actions) == self.k)
 
                 next_frame_file_list = batch_entry[2]
                 next_frame_list = [cv2.imread(file) for file in next_frame_file_list]
-                assert(len(next_frame_list) == 5)
+                assert(len(next_frame_list) == self.k)
                 next_frames = np.array(next_frame_list).transpose(1, 2, 0, 3).reshape(210, 160, 15)
                 
-                # 4 frames, combined across channels, 5 actions, and 5 frames (combined across channels) yielded
+                # 4 frames, combined across channels, k actions, and k frames (combined across channels) yielded
                 # from taking those actions
                 data_list.append([frames, actions, next_frames])
 
@@ -225,7 +225,7 @@ def calcAvgPixel(head_directory):
 def fileNum2FileName(num):
     return "frame_step_" + num.zfill(8) + ".jpg"
 
-def readFilenamesAndActions(head_directory):
+def readFilenamesAndActions(head_directory, num_next_frames):
     # Returns list of tuples of the form ([list_of_4_frame_filenames], [list_of_5_actions], [list_of_5_frame_filenames])
     frames_actions_nextframes = []
     img_tot = 0
@@ -247,17 +247,17 @@ def readFilenamesAndActions(head_directory):
         skip_ep = False
         enough_data = False
         for i in range(len(action_tuples)):
-            if i > 2 and i < len(action_tuples) - 5:
+            if i > 2 and i < len(action_tuples) - num_next_frames:
                 frames = [fileNum2FileName(action_tuples[i-3][1]), fileNum2FileName(action_tuples[i-2][1]), \
                     fileNum2FileName(action_tuples[i-1][1]), fileNum2FileName(action_tuples[i][1])]
-                actions = [int(action_tuples[i+1][0]), int(action_tuples[i+2][0]), int(action_tuples[i+3][0]), \
-                    int(action_tuples[i+4][0]), int(action_tuples[i+5][0])]
-                next_frames = [fileNum2FileName(action_tuples[i+1][1]), fileNum2FileName(action_tuples[i+2][1]), \
-                    fileNum2FileName(action_tuples[i+3][1]), fileNum2FileName(action_tuples[i+4][1]), \
-                    fileNum2FileName(action_tuples[i+5][1])]
-                for j in range(9):
+                actions = []
+                next_frames = []
+                for j in range(num_next_frames):
+                    actions.append(int(action_tuples[i+1+j][0]))
+                    next_frames.append(fileNum2FileName(action_tuples[i+1+j][1]))
+                for j in range(4+num_next_frames):
                     if fileNum2FileName(action_tuples[i-3+j][1]) not in files:
-                        print "Found action", i-j+3, "but could not find", corresponding_image, \
+                        print "Found action", i-3+j, "but could not find", corresponding_image, \
                             ": Skipping remainder of episode", directory
                         skip_ep = True
                 if skip_ep:
