@@ -39,9 +39,9 @@ class ACVPModel(ModelDesc):
     def _get_inputs(self):
         # Images are either concatenated (12 channels in cnn/naff, 3 in rnn)
         return [InputDesc(tf.float32, (None, 210, 160, self.in_channel_size), 'input'),
-                # Give the next 5 images and actions that yield them as labels/actions in all phases
+                # Give the next k images and actions that yield them as labels/actions in all phases
                 InputDesc(tf.float32, (None, 210, 160, 3*self.k), 'label'),
-                InputDesc(tf.int32, (None, 5), 'action')]
+                InputDesc(tf.int32, (None, self.k), 'action')]
 
     @auto_reuse_variable_scope
     def next_frame_cnn(self, image, action):
@@ -179,7 +179,7 @@ class AtariReplayDataflow(RNGDataFlow):
                 next_frame_file_list = batch_entry[2]
                 next_frame_list = [cv2.imread(file) for file in next_frame_file_list]
                 assert(len(next_frame_list) == self.k)
-                next_frames = np.array(next_frame_list).transpose(1, 2, 0, 3).reshape(210, 160, 15)
+                next_frames = np.array(next_frame_list).transpose(1, 2, 0, 3).reshape(210, 160, 3*self.k)
                 
                 # 4 frames, combined across channels, k actions, and k frames (combined across channels) yielded
                 # from taking those actions
@@ -226,7 +226,8 @@ def fileNum2FileName(num):
     return "frame_step_" + num.zfill(8) + ".jpg"
 
 def readFilenamesAndActions(head_directory, num_next_frames):
-    # Returns list of tuples of the form ([list_of_4_frame_filenames], [list_of_5_actions], [list_of_5_frame_filenames])
+    # Returns list of tuples of the form ([list_of_4_frame_filenames], [list_of_num_next_frames_actions],
+    # [list_of_num_next_frames_frame_filenames])
     frames_actions_nextframes = []
     img_tot = 0
     for directory, subdirs, files in os.walk(head_directory):
