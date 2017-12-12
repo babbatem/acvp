@@ -9,6 +9,7 @@ import os
 import pprint
 import argparse
 import time
+import random
 
 
 from tensorpack import *
@@ -47,7 +48,7 @@ def main():
 
     args = parser.parse_args()
 
-    logger.set_logger_dir(timestamp() + "train_log")
+    logger.set_logger_dir(timestamp() + '_' + str(random.randint(0, 10000000)) + "train_log")
     
     nr_gpu = max(get_nr_gpu(), 1)
     batch_size_cnn_naff = 32//nr_gpu if args.phase == "1" else 8//nr_gpu
