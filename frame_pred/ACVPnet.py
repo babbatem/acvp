@@ -61,7 +61,7 @@ class ACVPModel(ModelDesc):
             .Conv2D('conv0', out_channel=64, kernel_shape=8, stride=2)
             .Conv2D('conv1', out_channel=128, kernel_shape=6, stride=2)
             .Conv2D('conv2', out_channel=128, kernel_shape=6, stride=2)
-            .Conv2D('conv3', out_channel=128, kernel_shape=4, stride=2)
+            .Conv2D('conv3', out_channel=128, kernel_shape=4, stride=2, padding="VALID")
             .FullyConnected('fc0', 2048, nl=tf.nn.relu)
             .FullyConnected('fc1', 2048, nl=tf.identity)())
         encoder_and_actions = tf.tensordot(encoder_out, FullyConnected('fca', tf.one_hot(action, NUM_ACTIONS), \
@@ -69,7 +69,7 @@ class ACVPModel(ModelDesc):
         decoder_out = (LinearWrap(encoder_and_actions)
             .FullyConnected('fc3', 2048, nl=tf.identity)
             .FullyConnected('fc4', 2048, nl=tf.nn.relu)
-            .Deconv2D('deconv1', 128, 4, stride=2)
+            .Deconv2D('deconv1', 128, 4, stride=2, padding="VALID")
             .Deconv2D('deconv2', 128, 6, stride=2)
             .Deconv2D('deconv3', 128, 6, stride=2)
             .Deconv2D('deconv4', 3, 8, stride=2, nl=tf.identity)())
