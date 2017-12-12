@@ -68,7 +68,7 @@ def main():
 
     dataflow = AtariReplayDataflow(items, avgs, args.network, steps, shuffle=True, \
         batch_size=(batch_size_rnn if args.network == "rnn" else batch_size_cnn_naff))
-    dataflow = PrefetchDataZMQ(dataflow, 4)
+    dataflow = PrefetchDataZMQ(dataflow, 18)
     dataflow = PrintData(dataflow)
     # TODO(Ben/Matt), when running:
     #Set TENSORPACK_PIPE_DIR=/ltmp/
