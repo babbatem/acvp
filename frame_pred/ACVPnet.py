@@ -55,12 +55,15 @@ class ACVPModel(ModelDesc):
             .FullyConnected('fc1', 2048, nl=tf.identity)())
         encoder_and_actions = tf.tensordot(h, FullyConnected('fca', tf.one_hot(action, NUM_ACTIONS), \
             2048, nl=tf.identity), [[1], [0]])
+        dec_in_w = int(encoder_out.shape[1])-1
+	dec_in_h = int(encoder_out.shape[2])-1
+	print "Decoder input sizes", dec_in_w, dec_in_h
         decoder_in = (LinearWrap(encoder_and_actions)
             .FullyConnected('fc3', 2048, nl=tf.identity)
-            .FullyConnected('fc4', int(encoder_out.shape[1]) * int(encoder_out.shape[2]) * int(encoder_out.shape[3]),
+            .FullyConnected('fc4', dec_in_w * dec_in_h * int(encoder_out.shape[3]),
                 nl=tf.nn.relu)())
         decoder_in_4d = tf.reshape(decoder_in, \
-            [-1, int(encoder_out.shape[1]), int(encoder_out.shape[2]), int(encoder_out.shape[3])])
+            [-1, dec_in_w, dec_in_h, int(encoder_out.shape[3])])
         decoder_out = (LinearWrap(decoder_in_4d)
             .Deconv2D('deconv1', 128, 4, stride=2, padding="VALID")
             .Deconv2D('deconv2', 128, 6, stride=2)
