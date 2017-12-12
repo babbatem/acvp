@@ -82,8 +82,8 @@ class ACVPModel(ModelDesc):
         dec_in_h = int(encoder_out.shape[2])
         h = (LinearWrap(encoder_out)
             .FullyConnected('fc0', 2048, nl=tf.nn.relu)
-            .FullyConnected('fc1', 2048, nl=tf.relu)
-            .FullyConnected('fc2', dec_in_w * dec_in_h * int(encoder_out.shape[3]), nl=tf.relu)())
+            .FullyConnected('fc1', 2048, nl=tf.nn.relu)
+            .FullyConnected('fc2', dec_in_w * dec_in_h * int(encoder_out.shape[3]), nl=tf.nn.relu)())
         print "Decoder input sizes", dec_in_w, dec_in_h
         decoder_in_4d = tf.reshape(h, [-1, dec_in_w, dec_in_h, int(encoder_out.shape[3])])
         decoder_out = (LinearWrap(decoder_in_4d)
