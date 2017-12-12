@@ -27,18 +27,6 @@ def show_img(img, s):
     cv2.imshow("MyImage", img)
     cv2.waitKey(s*1000)
 
-# Function to create a single feed-forward layer with specified shape and 4D input
-# Returns a 4D output
-def forward(inpt, inpt_shape, hidden_size):
-    W = tf.Variable(tf.truncated_normal([int(inpt_shape[2]), hidden_size], stddev=0.1))
-    b = tf.Variable(tf.truncated_normal([int(inpt_shape[0]), int(inpt_shape[1]), hidden_size], stddev=0.1))
-    print "w", W.get_shape()
-    print "b", b.get_shape()
-    print "inpt", inpt.get_shape()
-    dot = tf.tensordot(inpt, W, [[2], [0]])
-    print "dot", dot.get_shape()
-    return tf.add(dot, b)
-
 class ACVPModel(ModelDesc):
     def __init__(self, network_type, avg, learning_rate, k, in_channel_size):
         super(ACVPModel, self).__init__()
@@ -61,14 +49,17 @@ class ACVPModel(ModelDesc):
             .Conv2D('conv0', out_channel=64, kernel_shape=8, stride=2)
             .Conv2D('conv1', out_channel=128, kernel_shape=6, stride=2)
             .Conv2D('conv2', out_channel=128, kernel_shape=6, stride=2)
-            .Conv2D('conv3', out_channel=128, kernel_shape=4, stride=2, padding="VALID")
+            .Conv2D('conv3', out_channel=128, kernel_shape=4, stride=2, padding="VALID")())
+        h = (LinearWrap(encoder_out)
             .FullyConnected('fc0', 2048, nl=tf.nn.relu)
             .FullyConnected('fc1', 2048, nl=tf.identity)())
-        encoder_and_actions = tf.tensordot(encoder_out, FullyConnected('fca', tf.one_hot(action, NUM_ACTIONS), \
+        encoder_and_actions = tf.tensordot(h, FullyConnected('fca', tf.one_hot(action, NUM_ACTIONS), \
             2048, nl=tf.identity), [[1], [0]])
-        decoder_out = (LinearWrap(encoder_and_actions)
+        decoder_in = (LinearWrap(encoder_and_actions)
             .FullyConnected('fc3', 2048, nl=tf.identity)
-            .FullyConnected('fc4', 2048, nl=tf.nn.relu)
+            .FullyConnected('fc4', 2048, nl=tf.nn.relu)())
+        print int(encoder_out.shape[1]), int(encoder_out.shape[2]), int(encoder_out.shape[3])
+        decoder_out = (LinearWrap(decoder_in)
             .Deconv2D('deconv1', 128, 4, stride=2, padding="VALID")
             .Deconv2D('deconv2', 128, 6, stride=2)
             .Deconv2D('deconv3', 128, 6, stride=2)
