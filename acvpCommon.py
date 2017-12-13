@@ -96,7 +96,7 @@ def acvplay(env, func, acvp, pred_steps, arch, render=False):
             env.render()
         
         sum_r += r
-        k = k + 1
+        k = k + 4
         if isOver:
             return sum_r
         
