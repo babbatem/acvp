@@ -320,7 +320,7 @@ def readFilenamesAndActions(head_directory, num_next_frames):
                 img_tot += 1
                 if img_tot % 10000 == 0:
                     print "Read in filenames and actions for", img_tot, "training examples"
-                if img_tot >= 1000:
+                if img_tot >= 250000:
                     enough_data = True
                     break
         if skip_ep:
