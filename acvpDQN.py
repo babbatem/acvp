@@ -173,7 +173,7 @@ if __name__ == '__main__':
         if args.task == 'acvp':
             play_save_n_episodes(get_player(viz=0,save=True), pred, 500)
         if args.task == 'plots':
-            plot_episodes(get_player(viz=0.01), pred, 30, args.arch)
+            plot_episodes(get_player(viz=0), pred, 30, args.arch)
         elif args.task == 'eval':
             eval_model_multithread(pred, EVAL_EPISODE, get_player)
     else:

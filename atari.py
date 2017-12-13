@@ -9,6 +9,8 @@ import os
 import cv2
 import threading
 import six
+
+from collections import deque
 from six.moves import range
 from tensorpack.utils import logger
 from tensorpack.utils.utils import get_rng, execute_only_once
@@ -164,7 +166,7 @@ class AtariPlayer(gym.Env):
     def _step(self, act):
         oldlives = self.ale.lives()
         r = 0
-        last_four_frames = []
+        last_four_frames = deque([], maxlen=4)
         for k in range(self.frame_skip):
             self.step_count += 1
             if k == self.frame_skip - 1:
@@ -186,7 +188,9 @@ class AtariPlayer(gym.Env):
         if self.live_lost_as_eoe:
             isOver = isOver or newlives < oldlives
 
-        info = {'score': self.current_episode_score.sum, 'gameOver': trueIsOver, 'last_four': last_four_frames}
+        info = {'score': self.current_episode_score.sum, 'gameOver': trueIsOver, 
+        'last_four': np.concatenate(last_four_frames, axis=2)}
+
         return self._current_state(), r, isOver, info
 
 

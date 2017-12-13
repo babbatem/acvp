@@ -1,22 +1,23 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# File: common.py
-# Author: Yuxin Wu <ppwwyyxxc@gmail.com>
+
 import os
 import random
 import time
 import multiprocessing
+import cv2
+import threading
+import six
 from tqdm import tqdm
 from six.moves import queue
 import numpy as np
 
+from collections import deque
 from tensorpack.utils.concurrency import StoppableThread, ShareSessionThread
 from tensorpack.callbacks import Callback
 from tensorpack.utils import logger
 from tensorpack.utils.stats import StatCounter
 from tensorpack.utils.utils import get_tqdm_kwargs
-
-# import from Matt as acvp_net
+from frame_pred.image_generator import ACVPGenerator
 
 
 def play_one_episode(env, func, render=False):
@@ -25,7 +26,7 @@ def play_one_episode(env, func, render=False):
         Map from observation to action, with 0.001 greedy.
         """
         act = func(s[None, :, :, :])[0][0].argmax()
-        if random.random() < 0.3:
+        if random.random() < 0.001:
             spc = env.action_space
             act = spc.sample()
         return act
@@ -55,32 +56,41 @@ def acvplay(env, func, acvp, pred_steps, arch, render=False):
         return act
 
     ob = env.reset()
+    spc = env.action_space
     frame_0 = env.env.env.env._grab_raw_image()
     sum_r = 0
-    pred_buffer = []
+    pred_buffer = deque([],maxlen=4)
+    ob_buffer = deque([],maxlen=4)
     for i in np.arange(4):
         pred_buffer.append(frame_0)
 
-    
+    pred_state = np.concatenate(pred_buffer, axis=2)
+
     k = 0
     while True:
         act = predict(ob)
         ob, r, isOver, info = env.step(act)
-        last_four_real_full_res = info['last_four']
-        pred_buffer.append(last_four_real_full_res)
-        print(len(pred_buffer[-1]))
-        # if (k % pred_steps == 0):
-        #     # given a real frame:
-        #     # don't modify ob - let it pass and select action according to real frame
-        #     # append last four real, full resolution images to pred_buffer
-        #     # modify __step to also return these, or override __step. stick it in info?
-        #     last_four_real_full_res = info['last_four']
-        #     pred_buffer.append(last_four_real_full_res)
-        # else: 
-        #     # replace ob with a predicted frame, given buffer and action
-        #     # take a step in predicted land, ie, append prediction to buffer
-        #     ob = acvp(pred_buffer,action)
-        #     pred_buffer.append(ob)
+        # print 'real ob shape', ob.shape
+
+        if (k % pred_steps == 0):
+            # print('real_frame')
+            last_four = info['last_four']
+            pred_state = last_four
+            # print(pred_state.shape)
+        else: 
+            # print('pred')
+            for i in range(4):
+                prediction = acvp([pred_state], np.array([[act]]))
+                grey_predict = cv2.cvtColor(prediction[0][0,:210,:,:], cv2.COLOR_RGB2GRAY)
+                # print 'grey_shape:', grey_predict.shape
+                ob_buffer.append(cv2.resize(grey_predict, (84,84)))
+                pred_buffer.append(prediction[0][0,:210,:,:])
+                pred_state = np.concatenate(pred_buffer,axis=2)
+                # print(pred_state.shape)
+                # cv2.imwrite('pred_frames/test_img.jpg', prediction[0][0,:210,:,:])
+            ob = np.array(ob_buffer)
+            ob = ob.transpose(1,2,0)
+            # print 'pred ob shape', ob.shape
 
         if render:
             env.render()
@@ -90,6 +100,36 @@ def acvplay(env, func, acvp, pred_steps, arch, render=False):
         if isOver:
             return sum_r
         
+def rand_play(env,func,pred_steps,render=False):
+    def predict(s):
+        """
+        Map from observation to action, with 0.001 greedy.
+        """
+        act = func(s[None, :, :, :])[0][0].argmax()
+        if random.random() < 0.001:
+            spc = env.action_space
+            act = spc.sample()
+        return act
+
+    spc = env.action_space
+    ob = env.reset()
+    sum_r = 0
+    k = 0
+    while True:
+        if (k % pred_steps == 0):
+            # every pred_steps frames, take a real action
+            act = predict(ob)
+        else:
+            # otherwise, act random
+            act = spc.sample()
+
+        ob, r, isOver, info = env.step(act)
+        if render:
+            env.render()
+        sum_r += r
+        k += 4
+        if isOver:
+            return sum_r
 
 def play_n_episodes(player, predfunc, nr, render=False):
     logger.info("Start Playing ... ")
@@ -97,7 +137,7 @@ def play_n_episodes(player, predfunc, nr, render=False):
     for k in range(nr):
 	    score[k] = play_one_episode(player, predfunc, render=render)
 	    print("{}/{}, score={}".format(k, nr, score))
-    np.savetxt('/Users/abba/projects/acvp/acvp/scores.out', score)
+    np.savetxt('/Users/abba/projects/acvp/acvp/em_scores.out', score)
 
 def play_save_n_episodes(player, predfunc, nr, render=False):
 	logger.info("Start Playing, and saving! ... ")
@@ -114,16 +154,19 @@ def play_save_n_episodes(player, predfunc, nr, render=False):
 
 def plot_episodes(player, predfunc, nr, arch, render=False):
     logger.info("Generating data for plots")
-    blind_steps = np.arange(0, 100, 8)
-    blind_steps = np.insert(blind_steps, 1, np.array([4]))
+    blind_steps = np.arange(8, 100, 8)
+    blind_steps = np.insert(blind_steps, 0, np.array([4]))
     # network = acvp_net(arch)
-    network = []
-    scores = np.arange(20).reshape((4,5))
+    network = ACVPGenerator('frame_pred/model-406692',arch)
+    scores = np.zeros(blind_steps.size*nr).reshape((blind_steps.size,nr))
+    k = 0
     for i in blind_steps:
         for j in range(nr):
-            score[i][j] = acvplay(player, predfunc, network, i, arch, render=render)
-            print("predictive steps {}/{}, repetition {}/{}, score={}".format(i, blind_steps.size, j, nr, score))
-    score_file.write(str(0) + ' ' + str(self.step_count) + '\n')
+            score[k][j] = acvplay(player, predfunc, network.predictor, i, arch, render=render)
+            # scores[k][j] = rand_play(player, predfunc, i, render=render)
+            print("predictive steps {}/{}, repetition {}/{}, score={}".format(k, blind_steps.size, j, nr, scores))
+        k += 1
+    np.savetxt('scores/small_phase1_scores.out', scores)
 
 
 def eval_with_funcs(predictors, nr_eval, get_player_fn):
