@@ -150,7 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('--rom', help='atari rom', required=True)
     parser.add_argument('--algo', help='algorithm',
                         choices=['DQN', 'Double', 'Dueling'], default='Double')
-    parser.add_argument('--arch', help='acvp architecture to use', choices=['cnn, rnn, naff'], default='cnn')
+    parser.add_argument('--arch', help='acvp architecture to use', choices=['cnn', 'rnn', 'naff'], default='cnn')
     args = parser.parse_args()
 
     if args.gpu:
