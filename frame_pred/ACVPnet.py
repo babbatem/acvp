@@ -69,7 +69,7 @@ class ACVPModel(ModelDesc):
             .Deconv2D('deconv2', 128, 6, stride=2)
             .Deconv2D('deconv3', 128, 6, stride=2)
             .Deconv2D('deconv4', 3, 8, stride=2, nl=tf.identity)())
-        return decoder_out
+        return tf.identity(decoder_out, name='cnn_prediction')
 
     @auto_reuse_variable_scope
     def next_frame_naff(self, image):
