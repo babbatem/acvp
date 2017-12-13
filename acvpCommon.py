@@ -156,17 +156,17 @@ def plot_episodes(player, predfunc, nr, arch, render=False):
     logger.info("Generating data for plots")
     blind_steps = np.arange(8, 100, 8)
     blind_steps = np.insert(blind_steps, 0, np.array([4]))
-    # network = acvp_net(arch)
-    network = ACVPGenerator('frame_pred/model-406692',arch)
+    network = ACVPGenerator('frame_pred/2017_12_12_16_05_15_9727706train_log/model-499993',arch)
+    # network = ACVPGenerator('frame_pred/model-499993',arch)
     scores = np.zeros(blind_steps.size*nr).reshape((blind_steps.size,nr))
     k = 0
     for i in blind_steps:
         for j in range(nr):
-            score[k][j] = acvplay(player, predfunc, network.predictor, i, arch, render=render)
+            scores[k][j] = acvplay(player, predfunc, network.predictor, i, arch, render=render)
             # scores[k][j] = rand_play(player, predfunc, i, render=render)
             print("predictive steps {}/{}, repetition {}/{}, score={}".format(k, blind_steps.size, j, nr, scores))
         k += 1
-    np.savetxt('scores/small_phase1_scores.out', scores)
+    np.savetxt('scores/LG_phase1.out', scores)
 
 
 def eval_with_funcs(predictors, nr_eval, get_player_fn):
