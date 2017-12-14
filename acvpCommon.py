@@ -158,7 +158,7 @@ def plot_episodes(player, predfunc, nr, arch, render=False):
     blind_steps = np.insert(blind_steps, 0, np.array([4]))
     # network = ACVPGenerator('frame_pred/2017_12_12_16_05_15_9727706train_log/model-499993',arch)
     # network = ACVPGenerator('frame_pred/2017_12_12_17_41_27_5032412train_log/model-499985',arch)
-    network = ACVPGenerator('2017_12_13_12_53_11_7692214train_log/model-542062',arch)
+    network = ACVPGenerator('frame_pred/2017_12_13_12_53_11_7692214train_log/model-542062',arch)
 
     # network = ACVPGenerator('frame_pred/model-499993',arch)
     scores = np.zeros(blind_steps.size*nr).reshape((blind_steps.size,nr))
